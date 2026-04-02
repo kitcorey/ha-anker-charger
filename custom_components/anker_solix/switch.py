@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -877,6 +878,9 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 for key, val in resp.items():
                     if key in mdev.mqttdata:
                         mdev.mqttdata[key] = val
+                # delay status request to allow device to process the command first,
+                # avoiding a stale 0a00 response that overwrites the mock state
+                await asyncio.sleep(2)
                 # trigger status request to get updated MQTT message
                 await mdev.status_request(toFile=self.coordinator.client.testmode())
             else:
