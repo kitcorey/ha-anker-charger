@@ -439,596 +439,90 @@ class AnkerSolixBaseApi:
             if new_values and callable(self._mqtt_update_callback):
                 self._mqtt_update_callback(deviceSn)
 
-    def update_device_mqtt(  # noqa: C901
+    # A91B2 0a00 / 0303 / 0302 decoded keys. Everything else that upstream
+    # update_device_mqtt merged (solarbank SOC, HES energy counters, PPS,
+    # EV charger phases, expansion packs, …) is not produced by the A91B2
+    # field maps in mqttmap.py and has been removed with the refactor.
+    _A91B2_STRING_KEYS = frozenset({"sw_version"})
+    _A91B2_FLOAT_3DP_KEYS = frozenset(
+        f"{prefix}_{port}_{metric}"
+        for prefix in ("usbc", "usba")
+        for port in (range(1, 5) if prefix == "usbc" else range(1, 3))
+        for metric in ("voltage", "current", "power")
+    )
+    _A91B2_PASSTHROUGH_KEYS = frozenset(
+        {
+            "topics",
+            "msg_timestamp",
+            "ac_1_switch",
+            "ac_2_switch",
+            "usbc_1_status",
+            "usbc_2_status",
+            "usbc_3_status",
+            "usbc_4_status",
+            "usba_1_status",
+            "usba_2_status",
+        }
+    )
+    _A91B2_PORT_SWITCH_MAP = {0: "ac_1_switch", 1: "ac_2_switch"}
+
+    def update_device_mqtt(
         self,
         deviceSn: str | None = None,
         values: dict | None = None,
     ) -> bool:
-        """Update the mqtt data cache of the given device or all devices and return whether update was done.
-
-        This will consolidate various device related mqtt key values under a common set of device keys.
-        """
+        """Merge decoded A91B2 MQTT values into the device's mqtt_data cache."""
         updated = False
-        dyn_desc = False
-        if self.mqttsession:
-            for sn, device in [
-                (sn, device)
-                for sn, device in self.devices.items()
-                if not deviceSn or sn == deviceSn
-            ]:
-                # get old MQTT data of device
-                device_mqtt = device.get("mqtt_data") or {}
-                oldsize = len(device_mqtt)
-                # oldtime = device_mqtt.get("last_update") or ""
-                # check if newer MQTT data is available from last message timestamp
-                # use copy of MQTT dict for device because it may be modified upon received messages
-                if (
-                    mqtt := (self.mqttsession.mqtt_data.get(sn) or {}).copy()
-                ) and values:  # and oldtime < (mqtt.get("last_message") or "")
-                    # cycle through all items and extract what is needed for the device type
-                    calc_efficiency = False
-                    calc_capacity = False
-                    for key, value in values.items():
-                        # Implement device MQTT merge code with key filtering, conversion, consolidation, calculation or dependency updates
-                        # skip value update marker for static fields that may be extracted from various messages
-                        value_updated = True
+        if not self.mqttsession:
+            return updated
+        for sn, device in [
+            (sn, device)
+            for sn, device in self.devices.items()
+            if not deviceSn or sn == deviceSn
+        ]:
+            device_mqtt = device.get("mqtt_data") or {}
+            oldsize = len(device_mqtt)
+            mqtt = (self.mqttsession.mqtt_data.get(sn) or {}).copy()
+            if mqtt and values:
+                for key, value in values.items():
+                    value_updated = True
+                    if key in self._A91B2_STRING_KEYS and value is not None:
+                        device_mqtt[key] = str(value)
+                    elif (
+                        key in self._A91B2_FLOAT_3DP_KEYS
+                        and str(value)
+                        .replace("-", "", 1)
+                        .replace(".", "", 1)
+                        .isdigit()
+                    ):
+                        device_mqtt[key] = f"{float(value):.3f}"
+                    elif key in self._A91B2_PASSTHROUGH_KEYS and value is not None:
+                        device_mqtt[key] = value
+                        # topics/msg_timestamp only mark freshness, not state change
+                        value_updated = key not in {"topics", "msg_timestamp"}
+                    elif key == "set_port_switch_select":
+                        # 0302 broadcast after a 0207 AC-outlet toggle: echo the
+                        # new state back into the device cache so the switch
+                        # entity flips immediately instead of waiting for 0a00.
                         if (
-                            key
-                            in [
-                                # keys with value being saved as string
-                                "device_sn",
-                                "sub_device_sn",
-                                "local_datetime",
-                                "exp_1_sn",
-                                "exp_2_sn",
-                                "exp_3_sn",
-                                "exp_4_sn",
-                                "exp_5_sn",
-                                "solarbank_1_sn",
-                                "solarbank_2_sn",
-                                "solarbank_3_sn",
-                                "solarbank_4_sn",
-                                "hw_version",
-                                "sw_version",
-                                "sw_controller",
-                                "sw_expansion",
-                                "inverter_brand",
-                                "inverter_model",
-                                "exp_1_type",
-                                "exp_2_type",
-                                "exp_3_type",
-                                "exp_4_type",
-                                "exp_5_type",
-                                "wifi_name",
-                                "power_panel_sn",
-                                "pps_1_sn",  # HA not used
-                                "pps_2_sn",  # HA not used
-                                "pps_1_model",  # HA not used
-                                "pps_2_model",  # HA not used
-                                "toggle_to_delay_time",  # HA missing, MQTT control not fully described
-                                "toggle_to_elapsed_time",  # HA missins, MQTT control not fully described
-                                "light_off_start_time",  # HA missing
-                                "light_off_end_time",  # HA missing
-                                "week_start_time",  # HA missing
-                                "week_end_time",  # HA missing
-                                "weekend_start_time",  # HA missing
-                                "weekend_end_time",  # HA missing
-                                "load_balance_monitor_device",  # HA not used
-                                "solar_evcharge_monitor_device",  # HA not used
-                            ]
-                            and value is not None
-                        ):
-                            device_mqtt.update({key: str(value)})
-                            value_updated = bool(
-                                key != "wifi_name" and not key.endswith("_sn")
-                            )
-                        elif (
-                            key
-                            in [
-                                # keys with value that should be saved as int string
-                                "battery_soc",
-                                "battery_soc_total",
-                                "main_battery_soc",
-                                "max_soc",
-                                "solarbank_1_soc",
-                                "solarbank_2_soc",
-                                "solarbank_3_soc",
-                                "solarbank_4_soc",
-                                "solarbank_1_ac_output_power_signed",
-                                "solarbank_2_ac_output_power_signed",
-                                "solarbank_3_ac_output_power_signed",
-                                "solarbank_4_ac_output_power_signed",
-                                "solarbank_ac_output_power_signed_total",
-                                "temperature",
-                                "photovoltaic_power",
-                                "pv_to_home_power",
-                                "pv_to_battery_power",
-                                "pv_1_power",
-                                "pv_2_power",
-                                "pv_3_power",
-                                "pv_4_power",
-                                "pv_power_3rd_party",  # HA not usable in system entity
-                                "pv_power_total",
-                                "dc_input_power",
-                                "dc_input_power_total",
-                                "dc_output_power_total",
-                                "output_power",
-                                "output_power_total",
-                                "output_power_signed_total",
-                                "battery_power_signed",
-                                "battery_power_signed_total",
-                                "bat_charge_power",
-                                "bat_discharge_power",
-                                "battery_to_grid_power",
-                                "battery_to_home_power",
-                                "ac_input_power",
-                                "ac_input_power_total",
-                                "ac_output_power",
-                                "ac_output_power_total",
-                                "ac_output_power_signed",
-                                "ac_output_power_signed_total",
-                                "ac_socket_power",
-                                "grid_power_signed",
-                                "grid_power_signed_l1",
-                                "grid_power_signed_l2",
-                                "grid_power_signed_l3",
-                                "heating_power",
-                                "grid_to_battery_power",
-                                "home_demand",
-                                "home_demand_total",
-                                "generator_to_battery_power",  # HA missing
-                                "generator_to_home_power",  # HA missing
-                                "generator_power",  # HA missing
-                                "charge_priority_limit",
-                                "pv_limit",
-                                "pv_limit_solarbank_1",  # HA not used for combiner box values
-                                "pv_limit_solarbank_2",  # HA not used for combiner box values
-                                "pv_limit_solarbank_3",  # HA not used for combiner box values
-                                "pv_limit_solarbank_4",  # HA not used for combiner box values
-                                "ac_input_limit",
-                                "min_load",
-                                "max_load",
-                                "max_load_legal",
-                                "max_load_total",
-                                "home_load_preset",
-                                "pv_to_grid_power",
-                                "grid_to_home_power",
-                                "system_output_power_signed_l1",
-                                "system_output_power_signed_l2",
-                                "wifi_signal",
-                                "charging_power",
-                                "power_l1",  # HA missing
-                                "power_l2",  # HA missing
-                                "power_l3",  # HA missing
-                                "min_current_limit",  # HA missing
-                                "max_current_limit",  # HA missing
-                                "main_breaker_limit",  # HA missing
-                                "max_evcharge_current",  # HA missing
-                                "solar_evcharge_min_current",  # HA missing
-                                "light_brightness",
-                            ]
-                            and str(value)
-                            .replace("-", "", 1)
-                            .replace(".", "", 1)
-                            .isdigit()
-                        ):
-                            device_mqtt[key] = f"{float(value):.0f}"
-                            # trigger device capacity calculation with SOC updates
-                            if key in ["battery_soc", "main_battery_soc"]:
-                                calc_capacity = True
-                        elif (
-                            key
-                            in [
-                                # keys with value that should be saved as rounded 3 decimal float string
-                                "battery_soh",
-                                "battery_soc_ah",
-                                "voltage",
-                                "pv_1_voltage",
-                                "pv_2_voltage",
-                                "pv_3_voltage",
-                                "pv_4_voltage",
-                                "battery_voltage",
-                                "power",
-                                "usbc_1_power",
-                                "usbc_2_power",
-                                "usbc_3_power",
-                                "usbc_4_power",
-                                "usba_1_power",
-                                "usba_2_power",
-                                "dc_12v_1_power",
-                                "dc_12v_2_power",
-                                "usbc_1_voltage",
-                                "usbc_2_voltage",
-                                "usbc_3_voltage",
-                                "usbc_4_voltage",
-                                "usba_1_voltage",
-                                "usba_2_voltage",
-                                "current",
-                                "usbc_1_current",
-                                "usbc_2_current",
-                                "usbc_3_current",
-                                "usbc_4_current",
-                                "usba_1_current",
-                                "usba_2_current",
-                                "voltage_l1",
-                                "voltage_l2",
-                                "voltage_l3",
-                                "voltage_l1l2",
-                                "voltage_l1l3",
-                                "voltage_l2l3",
-                                "power_factor",
-                                "current_l1",
-                                "current_l2",
-                                "current_l3",
-                                "system_output_current_l1",
-                                "system_output_current_l2",
-                                "system_output_current_l3",
-                            ]
-                            and str(value)
-                            .replace("-", "", 1)
-                            .replace(".", "", 1)
-                            .isdigit()
-                        ):
-                            device_mqtt[key] = f"{float(value):.3f}"
-                        elif (
-                            key
-                            in [
-                                # energy keys with value that should be saved as rounded as 3 decimal float string
-                                "pv_yield",  # aggregated
-                                "charged_energy",  # aggregated
-                                "discharged_energy",  # aggregated
-                                "output_energy",  # aggregated
-                                "bypass_energy",  # aggregated, HA not used
-                                "consumed_energy",  # aggregated
-                                "home_consumption",  # aggregated
-                                "grid_import_energy",  # aggregated
-                                "grid_export_energy",  # aggregated
-                                "charging_energy",  # HA missing
-                                "charging_energy_l1",  # HA missing
-                                "charging_energy_l2",  # HA missing
-                                "charging_energy_l3",  # HA missing
-                                "charged_energy_today",  # HA missing, how to merge to avoid decrease?
-                                "discharged_energy_today",  # HA missing, how to merge to avoid decrease?
-                                "pv_yield_today",  # HA missing, how to merge to avoid decrease?
-                                "pv_consumption_today",  # HA missing, how to merge to avoid decrease?
-                                "pv_charge_today",  # HA missing, how to merge to avoid decrease?
-                                "pv_export_today",  # HA missing, how to merge to avoid decrease?
-                                "battery_consumption_today",  # HA missing, how to merge to avoid decrease?
-                                "grid_discharged_today",  # HA missing, how to merge to avoid decrease?
-                                "grid_charged_today",  # HA missing, how to merge to avoid decrease?
-                                "grid_consumption_today",  # HA missing, how to merge to avoid decrease?
-                                "home_consumption_today",  # HA missing, how to merge to avoid decrease?
-                                "generator_energy_today",  # HA missing, how to merge to avoid decrease?
-                                "generator_charged_today",  # HA missing, how to merge to avoid decrease?
-                                "generator_consumed_today",  # HA missing, how to merge to avoid decrease?
-                            ]
-                        ):
-                            # aggregated energies should never decrease, otherwise weird values are sent or description is wrong
-                            # 0 value should be ignored for aggregated, since that may reset energy counters if 0 values read on startup
-                            if (
-                                str(key).startswith("charging_")
-                                or str(key).endswith("_today")
-                                or 0 < float(value) > float(device_mqtt.get(key, 0))
-                            ):
-                                device_mqtt[key] = f"{float(value):.3f}"
-                                if key in [
-                                    "output_energy",
-                                    "pv_yield",
-                                    "charged_energy",
-                                    "discharged_energy",
-                                    "consumed_energy",
-                                ]:
-                                    calc_efficiency = True
-                        elif (
-                            key
-                            in [
-                                # keys with value being saved unchanged
-                                "topics",
-                                "error_code",
-                                "charging_status",
-                                "dc_charging_status",
-                                "battery_status",
-                                "grid_status",
-                                "plant_status",
-                                "usbc_1_status",
-                                "usbc_2_status",
-                                "usbc_3_status",
-                                "usbc_4_status",
-                                "usba_1_status",
-                                "usba_2_status",
-                                "dc_12v_1_status",
-                                "dc_12v_2_status",
-                                "usbc_1_switch",
-                                "usbc_2_switch",
-                                "usbc_3_switch",
-                                "usbc_4_switch",
-                                "usba_switch",
-                                "ac_1_switch",
-                                "ac_2_switch",
-                                "dc_12v_auto_on",  # missing MQTT control command
-                                "usage_mode",
-                                "energy_saving_mode",  # missing MQTT control command
-                                "allow_export_switch",
-                                "priority_discharge_switch",
-                                "grid_export_disabled",
-                                "display_mode",
-                                "display_switch",
-                                "display_status",  # missing MQTT control command
-                                "display_timeout_seconds",
-                                "light_off_switch",
-                                "light_switch",
-                                "light_mode",
-                                "ac_socket_switch",
-                                "ac_output_power_switch",
-                                "dc_output_power_switch",
-                                "ac_output_mode",
-                                "dc_12v_output_mode",
-                                "backup_charge_switch",
-                                "ac_fast_charge_switch",
-                                "port_memory_switch",
-                                "temp_unit_fahrenheit",
-                                "expansion_packs",
-                                "solarbank_1_exp_packs",
-                                "solarbank_2_exp_packs",
-                                "solarbank_3_exp_packs",
-                                "solarbank_4_exp_packs",
-                                "device_timeout_minutes",
-                                "dc_output_timeout_seconds",
-                                "ac_output_timeout_seconds",
-                                "remaining_time_hours",
-                                "msg_timestamp",
-                                "local_timestamp",
-                                "utc_timestamp",
-                                "timestamp_backup_start",
-                                "timestamp_backup_end",
-                                "charging_start_timestamp",  # HA missing
-                                "tcp_timeout_seconds",  # HA missing
-                                "charging_duration_seconds",  # HA missing
-                                "charging_window_seconds",  # HA not used
-                                "plug_lock_switch",  # HA missing
-                                "plug_countdown_seconds",  # HA missing
-                                "start_countdown_seconds",  # HA missing
-                                "auto_start_switch",  # HA missing
-                                "auto_charge_restart_switch",  # HA missing
-                                "start_evcharge_switch",  # HA missing
-                                "random_delay_switch",  # HA missing
-                                "smart_touch_mode",  # HA missing
-                                "wipe_up_mode",  # HA missing
-                                "wipe_down_mode",  # HA missing
-                                "light_off_schedule_switch",  # HA missing
-                                "modbus_switch",  # HA missing
-                                "tcp_port",  # HA missing
-                                "ip_address",  # HA missing
-                                "load_balance_switch",  # HA missing
-                                "solar_evcharge_switch",  # HA missing
-                                "solar_evcharge_mode",  # HA missing
-                                "phase_operating_mode",  # HA missing
-                                "auto_phase_switch",  # HA missing
-                                "schedule_switch",  # HA missing
-                                "weekend_mode",  # HA missing
-                                "schedule_mode",  # HA missing
-                                "charging_mode",  # HA missing
-                                "ev_charger_status",  # HA missing
-                                "boost_status",  # HA missing
-                                "ocpp_connect_status",  # HA missing
-                                "cp_signal_status",  # HA missing
-                                "plug_status",  # HA missing
-                                "solar_evcharge_monitoring_mode",  # HA not used
-                                "working_status",
-                                "mode",  # HA missing, meaning not clear
-                            ]
-                            and value is not None
-                        ):
-                            device_mqtt[key] = value
-                            # determine EV charger model 3 phase capability
-                            if key == "charging_duration_seconds":
-                                device_mqtt["installed_phases"] = (
-                                    int(values.get("voltage_l1", 0) > 0)
-                                    + int(values.get("voltage_l2", 0) > 0)
-                                    + int(values.get("voltage_l3", 0) > 0)
-                                )
-                            value_updated = bool(
-                                key not in ["topics", "expansion_packs"]
-                                and "timestamp" not in key
-                            )
-                        # use expansion values only if installed
-                        elif (
-                            (
-                                key
-                                in [
-                                    "exp_1_soc",
-                                    "exp_1_temperature",
-                                    "exp_1_soh",
-                                ]
-                                and (
-                                    float(mqtt.get("expansion_packs", 0)) >= 1
-                                    or float(mqtt.get("exp_1_soc", 0)) > 0
-                                )
-                            )
-                            or (
-                                key
-                                in [
-                                    "exp_2_soc",
-                                    "exp_2_temperature",
-                                    "exp_2_soh",
-                                ]
-                                and (
-                                    float(mqtt.get("expansion_packs", 0)) >= 2
-                                    or float(mqtt.get("exp_2_soc", 0)) > 0
-                                )
-                            )
-                            or (
-                                key
-                                in [
-                                    "exp_3_soc",
-                                    "exp_3_temperature",
-                                    "exp_3_soh",
-                                ]
-                                and (
-                                    float(mqtt.get("expansion_packs", 0)) >= 3
-                                    or float(mqtt.get("exp_3_soc", 0)) > 0
-                                )
-                            )
-                            or (
-                                key
-                                in [
-                                    "exp_4_soc",
-                                    "exp_4_temperature",
-                                    "exp_4_soh",
-                                ]
-                                and (
-                                    float(mqtt.get("expansion_packs", 0)) >= 4
-                                    or float(mqtt.get("exp_4_soc", 0)) > 0
-                                )
-                            )
-                            or (
-                                key
-                                in [
-                                    "exp_5_soc",
-                                    "exp_5_temperature",
-                                    "exp_5_soh",
-                                ]
-                                and (
-                                    float(mqtt.get("expansion_packs", 0)) >= 5
-                                    or float(mqtt.get("exp_5_soc", 0)) > 0
-                                )
-                            )
-                        ) and str(value).replace("-", "", 1).replace(
-                            ".", "", 1
-                        ).isdigit():
-                            if str(key).endswith("_soh"):
-                                device_mqtt[key] = f"{float(value):.3f}"
-                            else:
-                                device_mqtt[key] = f"{float(value):.0f}"
-                                # trigger capacity calculation if any soc provided
-                                if "_soc" in key:
-                                    calc_capacity = True
-                        elif key in ["output_cutoff_data", "min_soc"]:
-                            device_mqtt["power_cutoff"] = str(value)
-                        elif key == "set_port_switch_select":
-                            # update port state based on toggle command or confirmation msg for cache update upon passive change
-                            # A91B2 uses port 0/1 for AC outlets; A2345 and others use 0-4 for USB ports
-                            port_switch_map = (
-                                {
-                                    0: "ac_1_switch",
-                                    1: "ac_2_switch",
-                                }
-                                if device.get("device_pn") == "A91B2"
-                                else {
-                                    0: "usbc_1_switch",
-                                    1: "usbc_2_switch",
-                                    2: "usbc_3_switch",
-                                    3: "usbc_4_switch",
-                                    4: "usba_switch",
-                                }
-                            )
-                            if (
-                                switch_name := port_switch_map.get(value)
-                            ) and (
-                                switch_value := values.get("set_port_switch")
-                            ) is not None:
-                                device_mqtt[switch_name] = switch_value
-                        else:
-                            value_updated = False
-                        updated = updated or value_updated
-                    # update last message timestamp from mqtt cache
-                    device_mqtt["last_update"] = str(mqtt.get("last_message"))
-                    # calculate extra fields if required values were updated
-                    if calc_efficiency:
-                        pv = device_mqtt.get("pv_yield")
-                        out = device_mqtt.get("output_energy")
-                        charge = device_mqtt.get("charged_energy")
-                        if not (discharge := device_mqtt.get("discharged_energy")):
-                            # SB2 does not report discharge, but calculates it as Output + Charged - PV
-                            if pv and out and charge:
-                                discharge = min(
-                                    float(charge),
-                                    max(0, float(out) + float(charge) - float(pv)),
-                                )
-                        # consider consumed energy for efficiency, since that probably reduces the reported pv_yield and charge energy
-                        consumed = device_mqtt.get("consumed_energy") or 0
-                        # First calculate optional AC charge
-                        ac_charge = 0
-                        if pv and out and charge and discharge:
-                            ac_charge = max(
-                                0,
-                                float(out)
-                                - float(pv)
-                                + float(charge)
-                                - float(discharge),
-                            )
-                        if pv and out and float(pv) > 0:
-                            # Solarbank 3 seem to reduce the reported PV energy by consumed energy (Heating, Socket), so it must be added to input
-                            dev_in = float(pv) + float(consumed) + ac_charge
-                            device_mqtt["device_efficiency"] = (
-                                f"{min(100, float(out) / dev_in * 100):.3f}"
-                            )
-                        if charge and discharge and float(charge) > 0:
-                            # Charge should include PV charge and AC charge if supported by device
-                            # Solarbank 3 seems to reduce the reported charge energy by consumed energy
-                            device_mqtt["battery_efficiency"] = (
-                                f"{min(100, float(discharge) / (float(charge) + float(consumed)) * 100):.3f}"
-                            )
-                    device["mqtt_data"] = device_mqtt
-                    # trigger device cache update for cap calculation with total or main device soc updates
-                    if calc_capacity and (cap := device.get("battery_capacity")):
-                        # calculate total expansions if expansions are available and no number in mqtt cache
-                        if mqtt.get("expansion_packs") is None:
-                            # deterministic code assumes expansion if soc or soh > 0
-                            device_mqtt["expansion_packs"] = len(
-                                [
-                                    k
-                                    for k in [f"exp_{i!s}_soc" for i in range(1, 6)]
-                                    if (
-                                        float(device_mqtt.get(k, 0)) > 0
-                                        or float(
-                                            device_mqtt.get(
-                                                k.replace("_soc", "_soh"), 0
-                                            )
-                                        )
-                                        > 0
-                                    )
-                                ]
-                            )
-                        # calculate device overall soc if expansions are available and no overall soc in mqtt cache
-                        if not (tsoc := mqtt.get("battery_soc")):
-                            # calculate overall soc based on expansions
-                            if soclist := [
-                                float(device_mqtt.get(k))
-                                for k in (
-                                    ["main_battery_soc"]
-                                    + [f"exp_{i!s}_soc" for i in range(1, 6)]
-                                )
-                                if device_mqtt.get(k)
-                            ]:
-                                tsoc = round(sum(soclist) / len(soclist))
-                                device_mqtt["battery_soc"] = f"{float(tsoc):.0f}"
-                        # trigger capacity calculation if no Api SOC available or MQTT overlay
-                        if tsoc and (
-                            not device.get("battery_soc") or device.get("mqtt_overlay")
-                        ):
-                            self._update_dev({"device_sn": sn, "battery_capacity": cap})
-                    # update marker should also indicate increase in extracted keys
-                    updated = updated or (oldsize != len(device_mqtt))
-                    # notify registered devices if new mqtt data cache was generated or dynamic description state changed
-                    descs = self._device_callbacks.get(deviceSn, {}).get(
-                        "dynamic_descriptions", {}
-                    )
-                    for key, item in descs.items():
-                        # check if key in message values and compare old state with new state
-                        if values.get(key) is not None and str(
-                            device_mqtt.get(key)
-                        ) != str(item.get("last_value", "")):
-                            # flag to trigger update if dynamic description value changed
-                            dyn_desc = True
-                            break
-                    if oldsize == 0 or dyn_desc:
-                        self.notify_device(deviceSn=sn)
-            # update MQTT statistic in account cache, convert datetime to json compatible format
-            stats = self.mqttsession.mqtt_stats.asdict()
-            if (start := stats.pop("start_time")) and isinstance(start, datetime):
-                stats["start_time"] = start.strftime("%Y-%m-%d %H:%M")
-            self._update_account({"mqtt_statistic": stats})
+                            switch_name := self._A91B2_PORT_SWITCH_MAP.get(value)
+                        ) and (
+                            switch_value := values.get("set_port_switch")
+                        ) is not None:
+                            device_mqtt[switch_name] = switch_value
+                    else:
+                        value_updated = False
+                    updated = updated or value_updated
+                device_mqtt["last_update"] = str(mqtt.get("last_message"))
+                device["mqtt_data"] = device_mqtt
+                updated = updated or (oldsize != len(device_mqtt))
+                if oldsize == 0:
+                    self.notify_device(deviceSn=sn)
+        # keep account cache statistics fresh for the diagnostics sensor
+        stats = self.mqttsession.mqtt_stats.asdict()
+        if (start := stats.pop("start_time")) and isinstance(start, datetime):
+            stats["start_time"] = start.strftime("%Y-%m-%d %H:%M")
+        self._update_account({"mqtt_statistic": stats})
         return updated
 
     async def update_sites(
