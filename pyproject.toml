@@ -58,16 +58,6 @@ exclude_lines = [
 # Keep this locked so local and CI envs agree.
 default-groups = ["dev"]
 
-[tool.ruff]
-# Inherit from .ruff.toml for core rules; this block adds per-path overrides
-# that are specific to the tests/ tree.
-extend = ".ruff.toml"
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = [
-    "D100",  # missing module docstring
-    "D101",  # missing class docstring
-    "D102",  # missing method docstring
-    "D103",  # missing function docstring
-    "D107",  # missing __init__ docstring
-]
+# Ruff config lives entirely in .ruff.toml — pyproject.toml's ruff section is
+# ignored when both files exist. Per-file ignores for tests/ are declared
+# there alongside the base lint.select/ignore lists.
