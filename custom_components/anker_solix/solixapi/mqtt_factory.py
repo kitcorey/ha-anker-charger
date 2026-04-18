@@ -1,4 +1,9 @@
-"""Device factory for creating appropriate Anker Solix MQTT device control instances."""
+"""Device factory for creating MQTT device control instances.
+
+Narrowed to A91B2 charger support: the upstream factory also dispatched to
+Solarbank, PPS, and SmartPlug device classes, which have been removed from
+this fork.
+"""
 
 from __future__ import annotations
 
@@ -7,9 +12,6 @@ from typing import TYPE_CHECKING
 from .apitypes import SolixDeviceType
 from .mqtt_charger import MODELS as CHARGER_MODELS, SolixMqttDeviceCharger
 from .mqtt_device import SolixMqttDevice
-from .mqtt_pps import MODELS as PPS_MODELS, SolixMqttDevicePps
-from .mqtt_solarbank import MODELS as SB_MODELS, SolixMqttDeviceSolarbank
-from .mqtt_various import MODELS as VAR_MODELS, SolixMqttDeviceVarious
 from .mqttmap import SOLIXMQTTMAP
 
 if TYPE_CHECKING:
@@ -17,50 +19,21 @@ if TYPE_CHECKING:
 
 
 class SolixMqttDeviceFactory:
-    """Define the class to create the appropriate MQTT device object based on device PN."""
+    """Create the appropriate MQTT device object for a device serial."""
 
     def __init__(self, api_instance: AnkerSolixApi, device_sn: str) -> None:
-        """Initialize.
-
-        Args:
-            api_instance: The API instance
-            device_sn: The device serial number
-
-        """
         self.api = api_instance
         self.device_sn = device_sn
         self.device_data = getattr(api_instance, "devices", {}).get(device_sn) or {}
 
     def create_device(self) -> SolixMqttDevice | None:
-        """Create the appropriate MQTT device control instance based on device type.
-
-        Returns:
-            Appropriate MQTT device instance or None if device not found
-
-        """
-        if self.device_data and (category := self.device_data.get("type") or ""):
-            pn = self.device_data.get("device_pn") or ""
-            # TODO: Update factory when new device categories and criteria are implemented
-            if pn in SOLIXMQTTMAP:
-                if category == SolixDeviceType.PPS.value and pn in PPS_MODELS:
-                    return SolixMqttDevicePps(self.api, self.device_sn)
-                if (
-                    category
-                    in [
-                        SolixDeviceType.SOLARBANK.value,
-                        SolixDeviceType.COMBINER_BOX.value,
-                    ]
-                    and pn in SB_MODELS
-                ):
-                    return SolixMqttDeviceSolarbank(self.api, self.device_sn)
-                if (
-                    category
-                    in [SolixDeviceType.CHARGER.value, SolixDeviceType.EV_CHARGER.value]
-                    and pn in CHARGER_MODELS
-                ):
-                    return SolixMqttDeviceCharger(self.api, self.device_sn)
-                if category == SolixDeviceType.SMARTPLUG.value and pn in VAR_MODELS:
-                    return SolixMqttDeviceVarious(self.api, self.device_sn)
-            # return default MQTT device supporting only the realtime trigger control
-            return SolixMqttDevice(self.api, self.device_sn)
-        return None
+        """Return the MQTT device instance for the serial, or None if unknown."""
+        if not (category := (self.device_data or {}).get("type")):
+            return None
+        pn = self.device_data.get("device_pn") or ""
+        if pn not in SOLIXMQTTMAP:
+            return None
+        if category == SolixDeviceType.CHARGER.value and pn in CHARGER_MODELS:
+            return SolixMqttDeviceCharger(self.api, self.device_sn)
+        # Fallback: plain MQTT device supporting only the realtime trigger.
+        return SolixMqttDevice(self.api, self.device_sn)
