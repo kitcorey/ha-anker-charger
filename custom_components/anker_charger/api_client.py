@@ -388,11 +388,9 @@ class AnkerSolixApiClient:
         return True
 
     # ------------------------------------------------------------------
-    # Test helpers kept no-op so lingering callers compile.
+    # Kept so switch.py's pre-apply gate still resolves. Cache is always
+    # valid in this fork since there are no background pollers.
     # ------------------------------------------------------------------
-    def toggle_cache(self, toggle: bool) -> None:
-        """No-op; cache is always valid in this fork."""
-
     async def validate_cache(self, timeout: int = 10) -> bool:
         """No-op; cache is always valid in this fork."""
         return True

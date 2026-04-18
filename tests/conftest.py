@@ -154,7 +154,6 @@ def mock_api_client(coordinator_data, mqtt_snapshot) -> MagicMock:
     client.trigger_timeout = MagicMock(return_value=300)
     client.check_mqtt_session = AsyncMock()
     client.validate_cache = AsyncMock(return_value=True)
-    client.toggle_cache = MagicMock()
     client.request = AsyncMock(return_value={"code": 0, "data": {}})
 
     sunroom_mdev = _mock_mqtt_device(mqtt_snapshot)
