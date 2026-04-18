@@ -1030,16 +1030,7 @@ class AnkerSolixBaseApi:
                         if tsoc and (
                             not device.get("battery_soc") or device.get("mqtt_overlay")
                         ):
-                            # trigger correct class with old capacity since this will cause capacity recalculation
-                            if self.hesApi and sn in self.hesApi.devices:
-                                api = self.hesApi
-                            elif (
-                                self.powerpanelApi and sn in self.powerpanelApi.devices
-                            ):
-                                api = self.powerpanelApi
-                            else:
-                                api = self
-                            api._update_dev({"device_sn": sn, "battery_capacity": cap})  # noqa: SLF001
+                            self._update_dev({"device_sn": sn, "battery_capacity": cap})
                     # update marker should also indicate increase in extracted keys
                     updated = updated or (oldsize != len(device_mqtt))
                     # notify registered devices if new mqtt data cache was generated or dynamic description state changed

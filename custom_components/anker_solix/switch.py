@@ -6,12 +6,9 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
-import logging
-from pathlib import Path
 from typing import Any
-import urllib.parse
 
 from homeassistant.components.switch import (
     SwitchDeviceClass,
@@ -21,58 +18,38 @@ from homeassistant.components.switch import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_EXCLUDE,
-    CONF_METHOD,
-    CONF_PAYLOAD,
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
     EntityCategory,
 )
-from homeassistant.core import HomeAssistant, SupportsResponse, callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util.dt import UTC
 
-from .api_client import AnkerSolixApiClientCommunicationError, AnkerSolixApiClientError
 from .const import (
     ALLOW_TESTMODE,
     ATTRIBUTION,
-    BACKUP_DURATION,
-    BACKUP_END,
-    BACKUP_START,
     CREATE_ALL_ENTITIES,
     DOMAIN,
-    ENABLE_BACKUP,
-    ENDPOINT,
-    EXPORTFOLDER,
-    INCLUDE_MQTT,
     LOGGER,
     MQTT_OVERLAY,
-    REQUEST_LINK,
-    SERVICE_API_REQUEST,
-    SERVICE_EXPORT_SYSTEMS,
-    SERVICE_MODIFY_SOLIX_BACKUP_CHARGE,
-    SOLIX_BACKUP_CHARGE_SCHEMA,
-    SOLIX_EXPORT_SCHEMA,
-    SOLIX_REQUEST_SCHEMA,
 )
 from .coordinator import AnkerSolixDataUpdateCoordinator
 from .entity import (
     AnkerSolixEntityFeature,
     AnkerSolixEntityRequiredKeyMixin,
     AnkerSolixEntityType,
-    AnkerSolixPicturePath,
     get_AnkerSolixAccountInfo,
     get_AnkerSolixDeviceInfo,
     get_AnkerSolixSubdeviceInfo,
     get_AnkerSolixSystemInfo,
     get_AnkerSolixVehicleInfo,
 )
-from .solixapi import export
 from .solixapi.apitypes import SolixDeviceType
 from .solixapi.mqtt_device import SolixMqttDevice
 from .solixapi.mqttcmdmap import SolixMqttCommands
@@ -395,23 +372,8 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 )
         return self._attr_extra_state_attributes
 
-    async def export_systems(self, **kwargs: Any) -> dict | None:
-        """Export the actual api responses for accessible systems and devices into zipped JSON files."""
-        return await self._solix_account_service(
-            service_name=SERVICE_EXPORT_SYSTEMS, **kwargs
-        )
 
-    async def api_request(self, **kwargs: Any) -> dict | None:
-        """Submit the api request to selected entity account."""
-        return await self._solix_account_service(
-            service_name=SERVICE_API_REQUEST, **kwargs
-        )
 
-    async def modify_solix_backup_charge(self, **kwargs: Any) -> dict | None:
-        """Modify the backup charge settings of devices supporting AC charge."""
-        return await self._solix_ac_charge_service(
-            service_name=SERVICE_MODIFY_SOLIX_BACKUP_CHARGE, **kwargs
-        )
 
     def update_state_value(self):
         """Update the state value of the switch based on the coordinator data."""
@@ -724,244 +686,7 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
             )
         return resp
 
-    async def _solix_account_service(
-        self, service_name: str, **kwargs: Any
-    ) -> dict | None:
-        """Execute the defined solarbank account action."""
-        # Raise alerts to frontend
-        if not (self.supported_features & AnkerSolixEntityFeature.ACCOUNT_INFO):
-            raise ServiceValidationError(
-                f"The entity '{self.entity_id}' does not support the action '{service_name}'",
-                translation_domain=DOMAIN,
-                translation_key="service_not_supported",
-                translation_placeholders={
-                    "entity": self.entity_id,
-                    "service": service_name,
-                },
-            )
-        # When running in Test mode do not run services that are not supporting a testmode
-        if self.coordinator.client.testmode() and service_name not in []:
-            raise ServiceValidationError(
-                f"'{self.entity_id}' cannot be used while configuration is running in testmode",
-                translation_domain=DOMAIN,
-                translation_key="active_testmode",
-                translation_placeholders={
-                    "entity_id": self.entity_id,
-                },
-            )
-        # When Api refresh is deactivated, do not run action to avoid kicking off other client Api token
-        if not self.coordinator.client.allow_refresh():
-            raise ServiceValidationError(
-                f"'{self.entity_id}' cannot be used for requested action '{service_name}' while Api usage is deactivated",
-                translation_domain=DOMAIN,
-                translation_key="apiusage_deactivated",
-                translation_placeholders={
-                    "entity_id": self.entity_id,
-                    "action_name": service_name,
-                },
-            )
-        # Ensure Export can be triggered only once and startup is finished
-        if self.coordinator.client.startup and not self.last_run:
-            self.last_run = datetime.now().astimezone() - timedelta(minutes=9)
-        if self.last_run and datetime.now().astimezone() < (
-            timeout := self.last_run + timedelta(minutes=10)
-        ):
-            LOGGER.debug(
-                "The action '%s' cannot be executed again while still running or startup in progress",
-                service_name,
-            )
-            # Raise alert to frontend
-            raise ServiceValidationError(
-                f"The action '{service_name}' cannot be executed again while still running or startup in progress (Timeout at {timeout.strftime('%H:%M:%S')})",
-                translation_domain=DOMAIN,
-                translation_key="action_blocked",
-                translation_placeholders={
-                    "service": service_name,
-                    "timeout": timeout.strftime("%H:%M:%S"),
-                },
-            )
-        # Reset last run after timeout (for unexpected exceptions)
-        self.last_run = None
-        if self.coordinator and hasattr(self.coordinator, "data"):
-            if service_name == SERVICE_EXPORT_SYSTEMS:
-                LOGGER.debug("'%s' action will be applied", service_name)
-                self.last_run = datetime.now().astimezone()
-                exportlogger: logging.Logger = logging.getLogger("anker_solix_export")
-                exportlogger.setLevel(logging.DEBUG)
-                myexport = export.AnkerSolixApiExport(
-                    client=self.coordinator.client.api,
-                    logger=exportlogger,
-                )
-                wwwroot = str(Path(self.coordinator.hass.config.config_dir) / "www")
-                exportpath: str = str(
-                    Path(wwwroot) / "community" / DOMAIN / EXPORTFOLDER
-                )
-                # Toogle coordinator client cache invalid during the cache export randomization of the randomized system export
-                try:
-                    if await myexport.export_data(
-                        export_path=exportpath,
-                        mqttdata=bool(kwargs.get(INCLUDE_MQTT)),
-                        toggle_cache=self.coordinator.client.toggle_cache,
-                    ):
-                        # convert path to public available url folder and filename
-                        result = urllib.parse.quote(
-                            myexport.zipfilename.replace(
-                                wwwroot, AnkerSolixPicturePath.LOCALPATH
-                            )
-                        )
-                    else:
-                        result = None
-                except (
-                    AnkerSolixApiClientError,
-                    AnkerSolixApiClientCommunicationError,
-                ) as exception:
-                    result = {
-                        "error": str(exception),
-                    }
-                finally:
-                    # Ensure to validate the coordinator client cache again
-                    self.coordinator.client.toggle_cache(True)
-                    # reset action blocker
-                    self.last_run = None
-                return {"export_filename": result}
-            if service_name == SERVICE_API_REQUEST:
-                LOGGER.debug("%s action will be applied", service_name)
-                self.last_run = datetime.now().astimezone()
-                # Wait until client cache is valid
-                await self.coordinator.client.validate_cache()
-                try:
-                    result = await self.coordinator.client.request(
-                        method=kwargs.get(CONF_METHOD),
-                        endpoint=kwargs.get(ENDPOINT),
-                        payload=kwargs.get(CONF_PAYLOAD),
-                    )
-                except (
-                    AnkerSolixApiClientError,
-                    AnkerSolixApiClientCommunicationError,
-                ) as exception:
-                    return {
-                        "request": {
-                            "method": kwargs.get(CONF_METHOD),
-                            "endpoint": kwargs.get(ENDPOINT),
-                            "payload": kwargs.get(CONF_PAYLOAD),
-                        },
-                        "error": str(exception),
-                    }
-                else:
-                    # only when no exception occurs
-                    return {
-                        "request": {
-                            "server": self.coordinator.client.api.apisession.server,
-                            "method": kwargs.get(CONF_METHOD),
-                            "endpoint": kwargs.get(ENDPOINT),
-                            "payload": kwargs.get(CONF_PAYLOAD),
-                        },
-                        "response": result,
-                    }
-                finally:
-                    # always executed even upon return in except block
-                    # reset action blocker
-                    self.last_run = None
 
-            raise ServiceValidationError(
-                f"The entity '{self.entity_id}' does not support the action '{service_name}'",
-                translation_domain=DOMAIN,
-                translation_key="service_not_supported",
-                translation_placeholders={
-                    "entity": self.entity_id,
-                    "service": service_name,
-                },
-            )
-        return None
-
-    async def _solix_ac_charge_service(
-        self, service_name: str, **kwargs: Any
-    ) -> dict | None:
-        """Execute the defined solix ac charge action."""
-        # Raise alerts to frontend
-        if not (self.supported_features & AnkerSolixEntityFeature.AC_CHARGE):
-            raise ServiceValidationError(
-                f"The entity '{self.entity_id}' does not support the action '{service_name}'",
-                translation_domain=DOMAIN,
-                translation_key="service_not_supported",
-                translation_placeholders={
-                    "entity": self.entity_id,
-                    "service": service_name,
-                },
-            )
-        # When running in Test mode do not run services that are not supporting a testmode
-        if (
-            self.coordinator.client.testmode()
-            and service_name != SERVICE_MODIFY_SOLIX_BACKUP_CHARGE
-        ):
-            raise ServiceValidationError(
-                f"'{self.entity_id}' cannot be used while configuration is running in testmode",
-                translation_domain=DOMAIN,
-                translation_key="active_testmode",
-                translation_placeholders={
-                    "entity_id": self.entity_id,
-                },
-            )
-        # When Api refresh is deactivated, do not run action to avoid kicking off other client Api token
-        if not self.coordinator.client.allow_refresh():
-            raise ServiceValidationError(
-                f"'{self.entity_id}' cannot be used for requested action '{service_name}' while Api usage is deactivated",
-                translation_domain=DOMAIN,
-                translation_key="apiusage_deactivated",
-                translation_placeholders={
-                    "entity_id": self.entity_id,
-                    "action_name": service_name,
-                },
-            )
-        if self.coordinator and hasattr(self.coordinator, "data"):
-            result = False
-            data: dict = self.coordinator.data.get(self.coordinator_context) or {}
-            if service_name == SERVICE_MODIFY_SOLIX_BACKUP_CHARGE:
-                LOGGER.debug("'%s' action will be applied", service_name)
-                # backup_start = None if not isinstance(kwargs.get(BACKUP_START), datetime) else kwargs.get(BACKUP_START)
-                # backup_end = None if not isinstance(kwargs.get(BACKUP_END), datetime) else kwargs.get(BACKUP_END)
-                # duration = None if not isinstance(kwargs.get(BACKUP_DURATION), timedelta) else kwargs.get(BACKUP_DURATION)
-                result = await self.coordinator.client.api.set_sb2_ac_charge(
-                    siteId=data.get("site_id") or "",
-                    deviceSn=self.coordinator_context,
-                    backup_start=kwargs.get(BACKUP_START),
-                    backup_end=kwargs.get(BACKUP_END),
-                    backup_duration=kwargs.get(BACKUP_DURATION),
-                    backup_switch=kwargs.get(ENABLE_BACKUP),
-                    toFile=self.coordinator.client.testmode(),
-                )
-                if not isinstance(result, dict):
-                    raise ServiceValidationError(
-                        f"The action '{service_name}' failed, review log for error details",
-                        translation_domain=DOMAIN,
-                        translation_key="service_error",
-                        translation_placeholders={
-                            "service": service_name,
-                        },
-                    )
-                await self.coordinator.async_refresh_data_from_apidict()
-            else:
-                raise ServiceValidationError(
-                    f"The entity '{self.entity_id}' does not support the action '{service_name}'",
-                    translation_domain=DOMAIN,
-                    translation_key="service_not_supported",
-                    translation_placeholders={
-                        "entity": self.entity_id,
-                        "service": service_name,
-                    },
-                )
-            # log resulting schedule if testmode returned dict
-            if isinstance(result, dict) and ALLOW_TESTMODE:
-                LOGGER.info(
-                    "%s: Applied result for action '%s':\n%s",
-                    "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
-                    service_name,
-                    json.dumps(
-                        result, indent=2 if len(json.dumps(result)) < 200 else None
-                    ),
-                )
-            await self.coordinator.async_refresh_data_from_apidict()
-        return None
 
 
 class AnkerSolixRestoreSwitch(AnkerSolixSwitch, RestoreEntity):
