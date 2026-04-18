@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(docker compose restart:*)",
+      "Bash(docker compose:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

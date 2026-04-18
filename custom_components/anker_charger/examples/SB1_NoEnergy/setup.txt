@@ -1,5 +1,0 @@
-SETUP:
-HM 600 Inverter
-2x 395 W panels.
-1x solarbank e1600
-1 System in Anker App

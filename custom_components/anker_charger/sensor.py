@@ -6,7 +6,6 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
 from random import choice, randrange
 from typing import Any

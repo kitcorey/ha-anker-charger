@@ -67,6 +67,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     MINOR_VERSION = CONFIG_MINOR_VERSION
 
     def __init__(self) -> None:
+        """Initialize empty state containers for the flow."""
         super().__init__()
         self._data: dict[str, Any] = {}
         self._options: dict[str, Any] = {}
@@ -145,11 +146,13 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reauth(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
+        """Forward reauth to the confirmation step."""
         return await self.async_step_reauth_confirm()
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
+        """Forward reconfigure to the confirmation step."""
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
@@ -294,12 +297,14 @@ class AnkerSolixOptionsFlowHandler(config_entries.OptionsFlow):
     """Options flow presenting just scan interval and MQTT settings."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize the options flow handler."""
         if AwesomeVersion(HAVERSION) < "2024.11.99":
             self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
+        """Present the options form and persist user choices."""
         placeholders: dict[str, str] = {MQTT_LINK: MQ_LINK}
         existing_options = self.config_entry.options.copy()
 

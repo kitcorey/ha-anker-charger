@@ -22,6 +22,7 @@ class SolixMqttDeviceFactory:
     """Create the appropriate MQTT device object for a device serial."""
 
     def __init__(self, api_instance: AnkerSolixApi, device_sn: str) -> None:
+        """Initialize the factory with the API instance and target device serial."""
         self.api = api_instance
         self.device_sn = device_sn
         self.device_data = getattr(api_instance, "devices", {}).get(device_sn) or {}

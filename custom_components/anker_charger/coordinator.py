@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from asyncio import TimerHandle, run_coroutine_threadsafe, sleep
-from datetime import datetime, timedelta
-import logging
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -39,6 +38,7 @@ class AnkerSolixDataUpdateCoordinator(DataUpdateCoordinator):
         config_entry: ConfigEntry,
         update_interval: int,
     ) -> None:
+        """Initialize the coordinator with the given update interval."""
         self.config_entry = config_entry
         self.client = client
         self.update_handler = None

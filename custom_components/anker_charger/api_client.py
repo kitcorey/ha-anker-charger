@@ -10,7 +10,6 @@ poll, done.
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 import socket
 
@@ -73,6 +72,7 @@ class AnkerSolixApiClient:
         entry: ConfigEntry | dict,
         session: aiohttp.ClientSession,
     ) -> None:
+        """Initialize the API client from a config entry or plain dict."""
         data: dict = {}
         if isinstance(entry, ConfigEntry):
             if hasattr(entry, "data"):
@@ -127,12 +127,14 @@ class AnkerSolixApiClient:
     # from a folder of JSON examples.
     # ------------------------------------------------------------------
     def testmode(self, mode: bool | None = None) -> bool:
+        """No-op stub; this fork does not support test mode."""
         return False
 
     # ------------------------------------------------------------------
     # Authentication + raw request passthrough
     # ------------------------------------------------------------------
     async def authenticate(self, restart: bool = False) -> bool:
+        """Authenticate against the Anker cloud and return a cached login status."""
         try:
             return await self.api.async_authenticate(restart=restart) or not restart
         except TimeoutError as exception:
@@ -231,6 +233,7 @@ class AnkerSolixApiClient:
     # Allow-refresh toggle (driven by the `allow_refresh` account switch).
     # ------------------------------------------------------------------
     def allow_refresh(self, allow: bool | None = None) -> bool:
+        """Query or toggle the cloud-polling refresh flag."""
         if allow is not None and allow != self._allow_refresh:
             self._allow_refresh = allow
             _LOGGER.info(
@@ -244,6 +247,7 @@ class AnkerSolixApiClient:
     # MQTT lifecycle
     # ------------------------------------------------------------------
     async def mqtt_usage(self, enable: bool | None = None) -> bool:
+        """Query or toggle MQTT usage, starting/stopping the session as needed."""
         if (
             enable is not None
             and isinstance(enable, bool)
@@ -264,6 +268,7 @@ class AnkerSolixApiClient:
         return self._mqtt_usage
 
     def trigger_timeout(self, seconds: int | None = None) -> int:
+        """Query or set the MQTT realtime-trigger timeout (seconds)."""
         if (
             seconds is not None
             and isinstance(seconds, float | int)
@@ -279,6 +284,7 @@ class AnkerSolixApiClient:
         return self._trigger_timeout
 
     def get_mqtt_device(self, sn: str) -> SolixMqttDevice | None:
+        """Return the MQTT device wrapper for a serial, or None."""
         return (isinstance(sn, str) and self.mqtt_devices.get(sn)) or None
 
     def get_mqtt_devices(
@@ -288,6 +294,7 @@ class AnkerSolixApiClient:
         extraDeviceSn: str | None = None,
         mqttControl: str | None = None,
     ) -> list[SolixMqttDevice]:
+        """Filter the live MQTT device instances by site/station/serial/control."""
         return [
             md
             for md in self.mqtt_devices.values()
@@ -302,6 +309,7 @@ class AnkerSolixApiClient:
         ]
 
     def get_mqtt_valuecount(self, sn: str | None = None) -> int:
+        """Count cached MQTT values across all devices or a single serial."""
         count = 0
         for mdev in self.mqtt_devices.values():
             count += len(mdev.mqttdata) if (not sn or sn == mdev.sn) else 0
@@ -395,6 +403,7 @@ class AnkerSolixApiClient:
     async def request(
         self, method: str, endpoint: str, payload: dict | None = None
     ) -> dict:
+        """Issue a raw request to the Anker cloud API through the apisession."""
         try:
             return await self.api.apisession.request(
                 method=method,
@@ -426,4 +435,5 @@ class AnkerSolixApiClient:
     # Dummy kept so coordinator.py's vehicle branch (dead but not yet pruned)
     # still resolves on import until Phase 6 cleanup.
     def get_registered_vehicles(self) -> list:
+        """Stub: vehicles are not supported in this fork."""
         return []

@@ -39,6 +39,7 @@ class AnkerSolixApi(AnkerSolixBaseApi):
         logger: logging.Logger | None = None,
         apisession: AnkerSolixClientSession | None = None,
     ) -> None:
+        """Initialize the charger-specific API instance."""
         super().__init__(
             email=email,
             password=password,

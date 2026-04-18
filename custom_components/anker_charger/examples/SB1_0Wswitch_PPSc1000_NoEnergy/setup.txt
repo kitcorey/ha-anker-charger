@@ -1,4 +1,0 @@
-SETUP:
-1x solarbank e1600
-1 x 0W Switch
-1 System in Anker App

@@ -1,9 +1,8 @@
 """Default definitions required for the Anker Power/Solix Cloud API."""
 
 from dataclasses import InitVar, asdict, dataclass
-from datetime import datetime
 from enum import Enum, IntEnum, StrEnum
-from typing import Any, ClassVar, Final
+from typing import ClassVar, Final
 
 # API servers per region. Country assignment not clear, defaulting to EU server
 API_SERVERS: Final[dict] = {

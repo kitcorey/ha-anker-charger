@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 from pathlib import Path
 from typing import Any
@@ -13,11 +13,8 @@ from aiohttp import ClientError, ClientSession
 from .apitypes import (
     API_ENDPOINTS,
     API_FILEPREFIXES,
-    API_HES_SVC_ENDPOINTS,
-    SolixDefaults,
     SolixDeviceType,
     SolixPriceProvider,
-    SolixPriceTypes,
 )
 from .mqtt import AnkerSolixMqttSession, MessageCallback
 from .session import AnkerSolixClientSession

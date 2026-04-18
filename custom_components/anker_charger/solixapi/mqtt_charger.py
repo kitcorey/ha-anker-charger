@@ -37,6 +37,7 @@ class SolixMqttDeviceCharger(SolixMqttDevice):
     """MQTT control wrapper for an A91B2 charging station."""
 
     def __init__(self, api_instance: AnkerSolixApi, device_sn: str) -> None:
+        """Initialize the MQTT charger wrapper with its model and feature map."""
         self.models = MODELS
         self.features = FEATURES
         super().__init__(api_instance=api_instance, device_sn=device_sn)

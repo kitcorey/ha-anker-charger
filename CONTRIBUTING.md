@@ -1,112 +1,56 @@
-# Contribution guidelines
+# Contributing
 
-Contributing to this project should be as easy and transparent as possible, whether it's:
+This is a personal fork of [`thomluther/ha-anker-solix`](https://github.com/thomluther/ha-anker-solix)
+trimmed down to support only the Anker Prime 8-in-1 240W Charging Station
+(model **A91B2**). PRs targeting the broader Solix device families should go
+upstream; PRs that improve A91B2 coverage (additional MQTT messages, missing
+port controls, translations) are welcome here.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
+## Development environment
 
-## Github is used for everything
+The quickest way to iterate is the included Docker Compose stack, which boots
+an isolated Home Assistant instance with the integration bind-mounted.
 
-Github is used to host code, to track issues and feature requests, as well as accept pull requests.
-
-Pull requests are the best way to propose changes to the codebase.
-
-1. Fork the repo and create your branch from `main`.
-2. If you've changed something, update the documentation.
-3. Make sure your code lints (using `scripts/lint`).
-4. Test you contribution.
-5. Issue that pull request!
-
-## Any contributions you make will be under the MIT Software License
-
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
-
-## Report bugs using Github's [issues](https://github.com/thomluther/ha-anker-solix/issues)
-
-GitHub issues are used to track public bugs.
-Report a bug by [opening a new issue](https://github.com/thomluther/ha-anker-solix/issues/new/choose); it's that easy!
-
-## Write bug reports with detail, background, and sample code
-
-**Great Bug Reports** tend to have:
-
-- A quick summary and/or background
-- Steps to reproduce
-  - Be specific!
-  - Give sample code if you can.
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
-
-People *love* thorough bug reports. I'm not even kidding.
-
-## Use a Consistent Coding Style
-
-Use [black](https://github.com/ambv/black) to make sure the code follows the style.
-
-## Running with Docker Compose
-
-The easiest way to test changes is with Docker Compose, which runs an isolated Home Assistant instance with the integration mounted in.
-
-### Prerequisites
+Prerequisites:
 
 - Docker and Docker Compose v2+
 
-### Quick start
+Bring the stack up:
 
-1. Copy the environment template:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Start Home Assistant:
-   ```bash
-   docker compose up -d
-   ```
-
-3. Open http://localhost:8123 in your browser.
-
-4. On first run, create an owner account, then go to
-   **Settings > Devices & Services > Add Integration** and search
-   for "Anker Solix".
-
-### Development workflow
-
-- Edit files under `custom_components/anker_solix/` as usual.
-- Restart to pick up changes:
-  ```bash
-  docker compose restart
-  ```
-- View logs:
-  ```bash
-  docker compose logs -f homeassistant
-  ```
-- Stop:
-  ```bash
-  docker compose down
-  ```
-
-### Testing against a specific HA version
-
-Edit `.env` and set:
+```bash
+cp .env.example .env     # first time only
+docker compose up -d
 ```
-HA_VERSION=2025.3.4
+
+Then open <http://localhost:8123>, create an owner account, and add the
+integration via **Settings → Devices & Services → Add Integration → "Anker
+Charger (A91B2)"**.
+
+Edit files under `custom_components/anker_charger/`, then either restart HA
+or press the integration's **Reload** button to pick up changes:
+
+```bash
+docker compose restart homeassistant
+docker compose logs -f homeassistant
 ```
-Then `docker compose up -d` (it will pull the new image).
 
-### Resetting state
+The `config/` directory stores HA runtime state (database, auth tokens) and
+is gitignored apart from `configuration.yaml`. To start fresh, stop the
+container and wipe `config/` except `configuration.yaml`.
 
-The `config/` directory stores Home Assistant runtime state (database,
-authentication, etc.) and is gitignored. Only `config/configuration.yaml`
-is tracked. To start fresh, stop the container and delete the `config/`
-directory contents (except `configuration.yaml`).
+Pin a specific HA release by setting `HA_VERSION=2026.4.3` in `.env`, then
+`docker compose up -d`.
 
-## Test your code modification
+## Lint
 
-This custom component is based on [integration_blueprint template](https://github.com/ludeeus/integration_blueprint).
+```bash
+docker run --rm -v "$PWD":/work -w /work ghcr.io/astral-sh/ruff:latest \
+  check custom_components/
+```
+
+The config lives in `.ruff.toml` at the repo root.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under its MIT License.
+By contributing you agree that your contribution is released under the
+[MIT License](./LICENSE) that covers the project.
