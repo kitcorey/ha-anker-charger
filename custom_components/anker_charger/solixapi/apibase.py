@@ -8,13 +8,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from aiohttp import ClientError, ClientSession
+from aiohttp import ClientSession
 
 from .apitypes import (
     API_ENDPOINTS,
     API_FILEPREFIXES,
     SolixDeviceType,
-    SolixPriceProvider,
 )
 from .mqtt import AnkerSolixMqttSession, MessageCallback
 from .session import AnkerSolixClientSession
@@ -57,9 +56,7 @@ class AnkerSolixBaseApi:
         self.mqttsession: AnkerSolixMqttSession | None = None
         # callback for device MQTT data update
         self._mqtt_update_callback: MqttUpdateCallback | None = None
-        # track active devices bound to any site
-        self._site_devices: set = set()
-        # reset class variables for saving the most recent account, site and device data (Api cache)
+        # reset class variables for saving the most recent account and device data (Api cache)
         self.account: dict[str, dict] = {}
         self.sites: dict[str, dict] = {}
         self.devices: dict[str, dict] = {}
@@ -123,49 +120,7 @@ class AnkerSolixBaseApi:
     def customizeCacheId(self, id: str, key: str, value: Any) -> None:
         """Customize a cache identifier with a key and value pair."""
         if isinstance(id, str) and isinstance(key, str):
-            if id in self.sites:
-                data = self.sites.get(id)
-                customized = data.get("customized") or {}
-                # merge with existing dict if value is dict
-                customized[key] = (
-                    ((customized.get(key) or {}) | value)
-                    if isinstance(value, dict)
-                    else value
-                )
-                data["customized"] = customized
-                # trigger an update of cached data depending on customized value
-                # customized keys that are used as alternate value must be handled separately since they may not exist in cache
-                if (
-                    key in ["dynamic_price_vat", "dynamic_price_fee", "dynamic_price"]
-                    and value
-                ):
-                    # dynamic price related updates should always be triggered if customized, independent of existing keys
-                    if key == "dynamic_price":
-                        # convert a provider string to dict
-                        if isinstance(value, str):
-                            customized[key] = SolixPriceProvider(
-                                provider=value
-                            ).asdict()
-                    # update whole dynamic price forecast
-                    self._update_site(
-                        siteId=id,
-                        details={
-                            "dynamic_price_details": self.extractPriceData(
-                                siteId=id, forceCalc=True
-                            )
-                        },
-                    )
-                elif key == "pv_forecast_details" and value:
-                    # update whole solar forecast in energy details
-                    self.extractSolarForecast(siteId=id)
-                elif key in (data.get("site_details") or {}):
-                    # trigger dependent updates by rewriting old value to cache update method
-                    self._update_site(
-                        siteId=id, details={key: data["site_details"][key]}
-                    )
-                elif key in data:
-                    pass
-            elif id in self.devices:
+            if id in self.devices:
                 data = self.devices.get(id)
                 customized = data.get("customized") or {}
                 customized[key] = value
@@ -196,43 +151,18 @@ class AnkerSolixBaseApi:
                 if key in data:
                     self._update_account(details={key: data.get(key)})
 
-    def recycleDevices(
-        self, extraDevices: set | None = None, activeDevices: set | None = None
-    ) -> None:
-        """Recycle api device list and remove devices no longer used in sites cache or extra devices."""
+    def recycleDevices(self, extraDevices: set | None = None) -> None:
+        """Drop devices from the cache that are no longer listed in bind_devices."""
         if not extraDevices or not isinstance(extraDevices, set):
             extraDevices = set()
-        if not activeDevices or not isinstance(activeDevices, set):
-            activeDevices = set()
-        # first clear internal site devices cache if active devices are provided
-        if activeDevices:
-            rem_devices = [
-                dev
-                for dev in self._site_devices
-                if dev not in (activeDevices | extraDevices)
-            ]
-            for dev in rem_devices:
-                self._site_devices.discard(dev)
-        # Clear device cache to maintain only active and extra devices
-        rem_devices = [
-            dev
-            for dev in self.devices
-            if dev not in (self._site_devices | extraDevices)
-        ]
+        rem_devices = [dev for dev in self.devices if dev not in extraDevices]
         for dev in rem_devices:
             self.devices.pop(dev, None)
-            # check callbacks and notify registered devices about removal from cache
+            # notify registered device callbacks about removal from cache
             cbs = self._device_callbacks.pop(dev, {})
             for func in cbs.get("functions", set()):
                 if callable(func):
                     func(device={})
-
-    def recycleSites(self, activeSites: set | None = None) -> None:
-        """Recycle api site cache and remove sites no longer active according provided activeSites."""
-        if activeSites and isinstance(activeSites, set):
-            rem_sites = [site for site in self.sites if site not in activeSites]
-            for site in rem_sites:
-                self.sites.pop(site, None)
 
     def register_device_callback(
         self, deviceSn: str, func: DeviceCacheCallback, dynamic_descriptions: dict
@@ -525,156 +455,6 @@ class AnkerSolixBaseApi:
         self._update_account({"mqtt_statistic": stats})
         return updated
 
-    async def update_sites(
-        self,
-        siteId: str | None = None,
-        fromFile: bool = False,
-        exclude: set | None = None,
-    ) -> dict:
-        """Create/Update api sites cache structure.
-
-        Implement this method to get the latest info for all accessible sites or only the provided siteId and update class cache dictionaries.
-        """
-        # define excluded categories to skip for queries
-        if not exclude or not isinstance(exclude, set):
-            exclude = set()
-        if siteId and (self.sites.get(siteId) or {}):
-            # update only the provided site ID
-            self._logger.debug(
-                "Updating api %s sites data for site ID %s",
-                self.apisession.nickname,
-                siteId,
-            )
-            new_sites = self.sites
-            # prepare the site list dictionary for the update loop by copying the requested site from the cache
-            sites: dict = {"site_list": [self.sites[siteId].get("site_info") or {}]}
-        else:
-            # run normal refresh for all sites
-            self._logger.debug(
-                "Updating api %s sites data",
-                self.apisession.nickname,
-            )
-            new_sites = {}
-            self._logger.debug(
-                "Getting api %s site list",
-                self.apisession.nickname,
-            )
-            sites = await self.get_site_list(fromFile=fromFile)
-            self._site_devices = set()
-        for site in sites.get("site_list", []):
-            if myid := site.get("site_id"):
-                # Update site info
-                mysite: dict = self.sites.get(myid, {})
-                siteInfo: dict = mysite.get("site_info", {})
-                siteInfo.update(site)
-                mysite.update(
-                    {"type": SolixDeviceType.SYSTEM.value, "site_info": siteInfo}
-                )
-                admin = (
-                    siteInfo.get("ms_type", 0) in [0, 1]
-                )  # add boolean key to indicate whether user is site admin (ms_type 1 or not known) and can query device details
-                mysite.update({"site_admin": admin})
-                # Update scene info for site
-                self._logger.debug(
-                    "Getting api %s scene info for site",
-                    self.apisession.nickname,
-                )
-                scene = await self.get_scene_info(myid, fromFile=fromFile)
-                mysite.update(scene)
-                new_sites.update({myid: mysite})
-                #
-                # Implement site dependent device update code as needed for various device types
-                # For each SN found in the site structures, update the internal site_devices set
-                # The update device details routine may also find standalone devices and need to merge all active
-                # devices for cleanup/removal of extra/obsolete devices in the cache structure
-                self._site_devices.add("found_sn")
-
-        # Write back the updated sites
-        self.sites = new_sites
-        # update account dictionary with number of requests
-        self._update_account({"use_files": fromFile})
-        return self.sites
-
-    async def update_site_details(
-        self, fromFile: bool = False, exclude: set | None = None
-    ) -> dict:
-        """Get the latest updates for additional account or site related details updated less frequently.
-
-        Implement this method for site related queries that should be used less frequently.
-        Most of theses requests return data only when user has admin rights for sites owning the devices.
-        To limit API requests, this update site details method should be called less frequently than update site method,
-        and it updates just the nested site_details dictionary in the sites dictionary as well as the account dictionary
-        """
-        # define excluded categories to skip for queries
-        if not exclude or not isinstance(exclude, set):
-            exclude = set()
-        self._logger.debug(
-            "Updating api %s sites details",
-            self.apisession.nickname,
-        )
-        #
-        # Implement required queries according to exclusion set
-        #
-
-        # update account dictionary with number of requests
-        self._update_account({"use_files": fromFile})
-        return self.sites
-
-    async def update_device_energy(
-        self, fromFile: bool = False, exclude: set | None = None
-    ) -> dict:
-        """Get the site energy statistics for given device types from today and yesterday.
-
-        Implement this method for the required energy query methods to obtain energy data for today and yesterday.
-        It was found that energy data is tracked only per site, but not individual devices even if a device SN parameter may be mandatory in the Api request.
-        """
-        # check exclusion list, default to all energy data
-        if not exclude or not isinstance(exclude, set):
-            exclude = set()
-        for site_id, site in self.sites.items():
-            self._logger.debug(
-                "Getting api %s energy details for site",
-                self.apisession.nickname,
-            )
-            #
-            # Implement required queries according to exclusion set
-            #
-            # save energy stats with sites dictionary
-            site["energy_details"] = {"energy_key": "energy_value"}
-            self.sites[site_id] = site
-
-        # update account dictionary with number of requests
-        self._update_account({"use_files": fromFile})
-        return self.sites
-
-    async def update_device_details(
-        self, fromFile: bool = False, exclude: set | None = None
-    ) -> dict:
-        """Get the latest updates for additional device info updated less frequently.
-
-        Implement this method for the required query methods to fetch device related data and update the device cache accordingly.
-        To limit API requests, this update device details method should be called less frequently than update site method,
-        which will also update most device details as found in the site data response.
-        """
-        # define excluded device types or categories to skip for queries
-        if not exclude or not isinstance(exclude, set):
-            exclude = set()
-        self._logger.debug(
-            "Updating api %s device details",
-            self.apisession.nickname,
-        )
-        #
-        # Implement required queries according to exclusion set
-        #
-
-        # update account dictionary with number of requests
-        self._update_account({"use_files": fromFile})
-        return self.devices
-
-
-
-
-
     async def get_bind_devices(self, fromFile: bool = False) -> dict:
         """Get the bind device information, which will list all devices the account has admin rights for. It also contains firmware level of devices.
 
@@ -692,19 +472,9 @@ class AnkerSolixBaseApi:
         data = resp.get("data") or {}
         active_devices = set()
         for device in data.get("data") or []:
-            # ensure to get product list once if needed if no device name in response
-            if not device.get("device_name") and "products" not in self.account:
-                self._update_account(
-                    {"products": await self.get_products(fromFile=fromFile)}
-                )
-            # Bind devices also lists shared devices, device admin cannot longer be assumed per default and must be determined
             if sn := self._update_dev(device.copy()):
                 active_devices.add(sn)
-        # avoid removal of passive devices from active sites, since they are not listed in bind_devices
-        for sn, device in self.devices.items():
-            if device.get("is_passive") and (device.get("site_id") or "") in self.sites:
-                active_devices.add(sn)
-        # recycle api device list and remove devices no longer used in sites or bind devices
+        # recycle api device list and remove devices no longer used in bind_devices
         self.recycleDevices(extraDevices=active_devices)
         return data
 
@@ -785,135 +555,3 @@ class AnkerSolixBaseApi:
             # update the data in api dict
             resp = await self.get_auto_upgrade()
         return resp
-
-
-    async def get_ota_batch(
-        self, deviceSns: list | None = None, fromFile: bool = False
-    ) -> dict:
-        """Get the OTA info for provided list of device serials or for all owning devices in devices dict.
-
-        Example data:
-        {"update_infos": [{"device_sn": "9JVB42LJK8J0P5RY","need_update": false,"upgrade_type": 0,"lastPackage": {
-                "product_code": "","product_component": "","version": "","is_forced": false,"md5": "","url": "","size": 0},
-        "change_log": "","current_version": "v1.6.3","children": [
-            {"needUpdate": false,"device_type": "A17C1_esp32","rom_version_name": "v0.1.5.1","force_upgrade": false,"full_package": {
-                "file_path": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/ota/2024/09/06/iot-admin/J7lALfvEQZIiqHyD/A17C1-A17C3_EUOTAWIFI_V0.1.5.1_20240828.bin",
-                "file_size": 1270256,"file_md5": "578ac26febb55ee55ffe9dc6819b6c4a"},
-            "change_log": "","sub_current_version": ""},
-            {"needUpdate": false,"device_type": "A17C1_mcu","rom_version_name": "v1.0.5.16","force_upgrade": false,"full_package": {
-                "file_path": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/ota/2024/09/06/iot-admin/w3ofT0NcpGF3IUcC/A17C1-A17C3_EUOTA_V1.0.5.16_20240904.bin",
-                "file_size": 694272,"file_md5": "40913018b3e542c0350e8815951e4a9c"},
-            "change_log": "","sub_current_version": ""},
-            {"needUpdate": false,"device_type": "A17C1_100Ah","rom_version_name": "v0.1.9.1","force_upgrade": false,"full_package": {
-                "file_path": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/ota/2024/09/06/iot-admin/mmCg3IkHt2YpF8TR/A17C1-A17C3_EUOTA_V0.1.9.1_20240904.bin",
-                "file_size": 694272,"file_md5": "40913018b3e542c0350e8815951e4a9c"},
-            "change_log": "","sub_current_version": ""}]]}]}
-        """
-        # default to all admin devices in devices dict if no device serial list provided
-        if not deviceSns or not isinstance(deviceSns, list):
-            deviceSns = [
-                s for s, device in self.devices.items() if device.get("is_admin")
-            ]
-        if not deviceSns:
-            resp = {}
-        elif fromFile:
-            resp = await self.apisession.loadFromFile(
-                Path(self.testDir()) / f"{API_FILEPREFIXES['get_ota_batch']}.json"
-            )
-        else:
-            data = {
-                "device_list": [
-                    {"device_sn": serial, "version": ""} for serial in deviceSns
-                ]
-            }
-            resp = await self.apisession.request(
-                "post", API_ENDPOINTS["get_ota_batch"], json=data
-            )
-        # update device details only if valid response
-        if (data := resp.get("data") or {}) and deviceSns:
-            # update devices dict with new ota data
-            for dev in data.get("update_infos") or []:
-                if deviceSn := dev.get("device_sn"):
-                    need_update = bool(dev.get("need_update"))
-                    is_forced = bool(dev.get("is_forced"))
-                    children: list = []
-                    for child in dev.get("children") or []:
-                        need_update = need_update or bool(child.get("needUpdate"))
-                        is_forced = is_forced or bool(child.get("needUpdate"))
-                        children.append(
-                            {
-                                "device_type": child.get("device_type"),
-                                "need_update": bool(child.get("needUpdate")),
-                                "force_upgrade": bool(child.get("force_upgrade")),
-                                "rom_version_name": child.get("rom_version_name"),
-                            }
-                        )
-                    self._update_dev(
-                        {
-                            "device_sn": deviceSn,
-                            "is_ota_update": need_update,
-                            "ota_forced": need_update,
-                            "ota_version": (dev.get("lastPackage") or {}).get("version")
-                            or dev.get("current_version")
-                            or "",
-                            "ota_children": children,
-                        }
-                    )
-        return data
-
-
-
-
-
-    async def get_products(self, fromFile: bool = False) -> dict:
-        """Compose the supported Anker and third platform products into a condensed dictionary."""
-
-        products = {}
-        self._logger.debug(
-            "Getting api %s Anker platform list",
-            self.apisession.nickname,
-        )
-        # Ignore timeouts or other errors wrapped into a ClientError from queries, but return data only if all worked
-        try:
-            for platform in await self.get_product_platforms_list(fromFile=fromFile):
-                plat_name = platform.get("name") or ""
-                for prod in platform.get("products") or []:
-                    products[prod.get("product_code") or ""] = {
-                        "name": str(prod.get("name") or "").strip(),
-                        "platform": str(plat_name).strip(),
-                        # "img_url": prod.get("img_url"),
-                    }
-            self._logger.debug(
-                "Getting api %s HES product list",
-                self.apisession.nickname,
-            )
-            for platform in await self.get_hes_platforms_list(fromFile=fromFile):
-                if (pn := platform.get("code") or "") and pn not in products:
-                    products[pn] = {
-                        "name": str(platform.get("name") or "").strip(),
-                        "platform": str(platform.get("category") or "").strip(),
-                        # "img_url": platform.get("imgUrl"),
-                    }
-            # get_third_platforms_list does no longer show 3rd platform products, skip query until data provided again
-            # see https://github.com/thomluther/anker-solix-api/issues/172
-            # self._logger.debug(
-            #     "Getting api %s 3rd party platform list",
-            #     self.apisession.nickname,
-            # )
-            # for platform in await self.get_third_platforms_list(fromFile=fromFile):
-            #     plat_name = platform.get("name") or ""
-            #     countries = platform.get("countries") or ""
-            #     for prod in platform.get("products") or []:
-            #         products[prod.get("product_code") or ""] = {
-            #             "name": " ".join([plat_name, prod.get("name")]),
-            #             "platform": plat_name,
-            #             "countries": countries,
-            #             # "img_url": prod.get("img_url"),
-            #         }
-        except ClientError as err:
-            self._logger.error(
-                "Api %s failed to get product list: %s",
-                self.apisession.nickname,
-                err,
-            )
-        return products
