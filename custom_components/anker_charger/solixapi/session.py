@@ -1,17 +1,16 @@
 """Anker Power/Solix Cloud API class to handle a client connection session for an account."""
 
 from asyncio import sleep
-from base64 import b64decode, b64encode
+from base64 import b64encode
 import contextlib
 from datetime import datetime
 
 # TODO(COMPRESSION): from gzip import compress, decompress
-import hashlib
 import json
 import logging
 import os
 from pathlib import Path
-from random import randbytes, randrange
+from random import randrange
 import tempfile
 from types import SimpleNamespace
 from typing import Any
@@ -21,17 +20,15 @@ import aiofiles.os
 from aiohttp import ClientSession, ClientTimeout
 from aiohttp.client_exceptions import ClientError
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, padding, serialization
+from cryptography.hazmat.primitives import padding, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from . import errors
 from .apitypes import (
     API_COUNTRIES,
     API_ENDPOINTS,
     API_HEADERS,
-    API_KEY_EXCHANGE,
     API_LOGIN,
     API_SERVERS,
     SolixDefaults,
@@ -130,9 +127,6 @@ class AnkerSolixClientSession:
         self.request_count: RequestCounter = RequestCounter()
         # Flag whether compression should be used (Actually not supported by Anker Power servers)
         self.compress_data: bool = False
-        # handler for encryption
-        self.encrypt_payload: bool = False
-        self._eh: AnkerEncryptionHandler | None = None
 
     @property
     def email(self) -> str:
@@ -460,65 +454,6 @@ class AnkerSolixClientSession:
         # use required headers and merge provided/optional headers
         mergedHeaders = self.generate_header()
         mergedHeaders.update(headers)
-        # TODO(ENCRYPTION): Handle payload encryption once known
-        if self.encrypt_payload and self._login_response:
-            if not self._eh and self._token:
-                # init encryption handler
-                self._eh = AnkerEncryptionHandler(
-                    login_response=self._login_response,
-                    session=self._session,
-                    logger=self._logger,
-                )
-            if not self._eh.shared_secret:
-                # Perform key exchange
-                await self._eh.perform_key_exchange(
-                    api_base=self._api_base, headers=mergedHeaders
-                )
-
-            # App Example request with encrypted payload
-            #   curl --request POST \
-            #     --url https://ankerpower-api-eu.anker.com/power_service/v1/app/device/get_device_attrs \
-            #     --compressed \
-            #     --header 'accept-encoding: gzip' \
-            #     --header 'app-name: anker_power' \
-            #     --header 'app-version: 3.6.0' \
-            #     --header 'content-type: text/plain' \
-            #     --header 'gtoken: GTOKEN' \
-            #     --header 'host: ankerpower-api-eu.anker.com' \
-            #     --header 'language: en' \
-            #     --header 'x-app-key: ' \
-            #     --header 'x-auth-token: TOKEN' \
-            #     --header 'x-encryption-info: algo_ecdh' \
-            #     --header 'x-replay-info: replay' \
-            #     --header 'x-key-ident: 487c4d59721f02c22112c46c1ea038bf' \
-            #     --header 'x-request-once: cba657a9e6b9da45d89658b6a281ff97' \
-            #     --header 'x-request-ts: 1745103679' \
-            #     --header 'x-signature: d93f441a9951cc4f4069f13d21248764619e42336315dcc93022f93fddcc7cbb' \
-            #     --data 'MTc0NTEwMzY3OTIyMjAwMIUJ7p7z1Zk4ra+8lqNwWY8l//5+uEyzztV+MglhAvvv3/xuqxYyn9heRVIRHje482N8BuZEVklJEnernTGFyEY='
-            # App Example response with encrypted payload
-            #     {"signature": "98444e7105fbdc29a4e969d8b24d6e757ea9c495c6c8158cefbecdaf2cbf72b0",
-            #     "msg": "success!",
-            #     "code": 0,
-            #     "trace_id": "9d0bd9c0a328bcfde9e60f5a33284977",
-            #     "data": "ybF4Sg9vCKt3V75DnvTddszD0m6qJH4ZhjcN4DQC2RMlvqCthrJ1qK4DLvJ7l8jwYYbMooaE2QXmtfGebt8d1wfzCnl3XqLhpM8dxXX7ghw="}
-
-            # Mandatory extra api header arguments for key exchange
-            #     'x-app-key': '' # empty is fine
-            #     'x-encryption-info': 'algo_ecdh'
-            #     'x-replay-info': 'replay'
-            #     'x-auth-ts': [authentication timestamp] # Unix Timestamp in s as string
-            #     'x-key-ident': [generated key ident] # 16 Byte MD5 hash
-            #     'x-request-once': [generated request once] # 16 Byte MD5 hash
-            #     'x-request-ts': [request timestamp] # Unix Timestamp in s as string
-            #     'x-signature': [generated signature] # 32 Byte SHA256 hash
-            # Response will return encrypted body and a signature field
-            timestamp = generateTimestamp()
-            mergedHeaders.update(
-                self._eh.generate_x_header(timestamp=timestamp, data=json)
-                | {
-                    "content-type": "text/plain",
-                }
-            )
 
         self._logger.debug("Request Url: %s %s", method.upper(), url)
         self._logger.debug(
@@ -527,7 +462,6 @@ class AnkerSolixClientSession:
         )
         if endpoint in [
             API_LOGIN,
-            API_KEY_EXCHANGE,
             API_ENDPOINTS["get_token_by_userid"],
             API_ENDPOINTS["get_shelly_status"],
         ]:
@@ -618,9 +552,6 @@ class AnkerSolixClientSession:
                 # reset retry flag for normal request retry attempts
                 self._retry_attempt = False
 
-                # TODO(ENCRYPTION): data field has to be decoded when encrypted and signature field in response
-                if self.encrypt_payload and data.get("signature"):
-                    data["data"] = self._eh.decryptApiData(data.get("data"))
                 return data
 
         # Exception from ClientSession based on standard response status codes
@@ -905,186 +836,3 @@ class AnkerSolixClientSession:
     def get_login_info(self, key: str) -> Any | None:
         """Get a certain key from authenticated client login info."""
         return self._login_response.get(key)
-
-
-class AnkerEncryptionHandler:
-    """Anker Solix encryption handler class.
-
-    ATTENTION: This class is experimental and does not work yet since various x header field value generation is unknown.
-    """
-
-    def __init__(
-        self,
-        login_response: dict,
-        session: ClientSession,
-        logger: logging.Logger | None = None,
-    ) -> None:
-        """Initialize the encryption handler."""
-        self._login_response = login_response
-        self._session = session
-        # Create ECDH key pair for encryption key exchange using NIST P-256 curve
-        self.private_key = ec.generate_private_key(ec.SECP256R1())
-        self.public_key = self.private_key.public_key()
-        self.server_public_key = None
-        self.shared_secret = None
-        # initialize logger for class
-        if logger:
-            self._logger = logger
-        else:
-            self._logger = _LOGGER
-            self._logger.setLevel(logging.WARNING)
-        if not self._logger.hasHandlers():
-            self._logger.addHandler(logging.StreamHandler())
-
-    def _generate_client_key(self, timestamp: str) -> str:
-        """Generate the client public key in Anker's format."""
-        # Get raw public key bytes
-        raw_public_key = self.public_key.public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint,
-        )
-        # Construct the key with timestamp and marker as observed in Api communication
-        key_data = bytearray()
-        key_data.extend(timestamp.encode())  # First 16 bytes: timestamp
-        key_data.append(0x1F)  # Marker byte ?
-        key_data.extend(raw_public_key)  # Public key uncompressed point format in bytes
-        # return base64 encoded string representation of key format
-        return b64encode(key_data).decode()
-
-    def generate_x_header(self, timestamp: str, data: dict) -> dict:
-        """Generate extra header fields for encryption."""
-        # request_once using timestamp in s and random? data (to be adjusted as required)
-        request_once = md5(timestamp.encode() + randbytes(16))
-        request_once = md5(
-            timestamp.encode() + self._login_response.get("geo_key").encode()
-        )
-        # key_ident using timestamp in ms and random? data (to be adjusted as required)
-        key_ident = md5(timestamp.encode() + randbytes(16))
-        key_ident = md5(
-            timestamp.encode() + self._login_response.get("auth_token").encode()
-        )
-        # SHA256 signature using timestamp, request-once, key_ident and body?  (to be adjusted as required)
-        signature = hashlib.sha256(
-            timestamp.encode()
-            + request_once.encode()
-            + key_ident.encode()
-            + json.dumps(data).encode()
-        ).hexdigest()
-        return {
-            "content-type": "text/plain",
-            "x-app-key": "",  # Can be empty
-            "x-encryption-info": "algo_ecdh",
-            "x-replay-info": "replay",
-            "x-key-ident": key_ident,
-            "x-request-once": request_once,
-            "x-request-ts": timestamp,
-            "x-signature": signature,
-        }
-
-    async def perform_key_exchange(
-        self,
-        api_base: str,
-        auth_ts: str | None = None,
-        headers: dict | None = None,
-    ) -> str | None:
-        """Perform the key exchange with Anker's server and return shared secret."""
-        if not isinstance(headers, dict):
-            headers = {}
-        timestamp = generateTimestamp()
-        if not auth_ts:
-            auth_ts = timestamp
-        # Prepare request
-        url = f"{api_base}/{API_KEY_EXCHANGE}"
-        data = {"client_public_key": self._generate_client_key(timestamp=auth_ts)}
-        # obtain encryption header fields and add/modify fields for key exchange request
-        headers.update(
-            self.generate_x_header(timestamp=timestamp, data=data)
-            | {
-                "content-type": "application/json",
-                "x-auth-ts": auth_ts,
-            }
-        )
-        self._logger.debug("Request Url: %s %s", "POST", url)
-        self._logger.debug(
-            "Request Headers: %s",
-            headers,
-        )
-        self._logger.debug("Request Body: %s", str(data))
-        async with self._session.request(
-            "post",
-            url,
-            headers=headers,
-            json=data,
-            timeout=ClientTimeout(total=self._request_timeout),
-        ) as resp:
-            try:
-                self._logger.debug("AnkerEncryptionHandler request response received")
-                # print response headers
-                self._logger.debug("Response Headers: %s", resp.headers)
-                # get first the body text for usage in error detail logging if necessary
-                body_text = await resp.text()
-                data = {}
-                resp.raise_for_status()  # any response status >= 400
-                # get json data without strict checking for json content
-                data = await resp.json(content_type=None)
-                if not data:
-                    self._logger.error("Response Text: %s", body_text)
-                    raise ClientError(  # noqa: TRY301
-                        f"No data response while requesting {API_KEY_EXCHANGE}"
-                    )
-                self._logger.debug("Response Data: %s", data)
-                self.server_public_key = (data.get("data") or {}).get(
-                    "server_public_key"
-                ) or None
-                if not self.server_public_key:
-                    return None
-                return self.derive_shared_key(self.server_public_key)
-
-            # Exception from ClientSession based on standard response status codes
-            except ClientError as err:
-                # Prepare data dict for Api error lookup
-                if not data:
-                    data = {}
-                if not hasattr(data, "code"):
-                    data["code"] = resp.status
-                if not hasattr(data, "msg"):
-                    data["msg"] = body_text
-                # raise Client error otherwise
-                raise ClientError(
-                    f"AnkerEncryptionHandler Key exchange failed: {err}, response={body_text}",
-                ) from err
-
-    def derive_shared_key(self, server_public_key_b64: str) -> bytes:
-        """Derive the shared AES key from the server's public key."""
-        # Decode server's public key
-        server_key_bytes = b64decode(server_public_key_b64)
-        # Extract the actual key portion (first 96 bytes based on analysis, but may need to be adopted)
-        key_portion = server_key_bytes[:96]
-        # Load server's public key
-        server_public_key = ec.EllipticCurvePublicKey.from_encoded_point(
-            ec.SECP256R1(), key_portion
-        )
-        # Compute shared secret
-        shared_secret = self.private_key.exchange(ec.ECDH(), server_public_key)
-        # Derive AES key using HKDF
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=None, info=b"ecdh handshake"
-        )
-        self.shared_secret = hkdf.derive(shared_secret)
-        return self.shared_secret
-
-    def decryptApiData(self, encrypted_payload: str) -> str:
-        """Decrypt an encrypted payload using the derived shared AES key."""
-        # Decode base64 payload
-        encrypted_data = b64decode(encrypted_payload)
-        # Split IV and ciphertext by first 16 bytes
-        iv = encrypted_data[:16]
-        ciphertext = encrypted_data[16:]
-        # Create AES cipher
-        cipher = Cipher(algorithms.AES(self.shared_secret), modes.CBC(iv))
-        # Decrypt
-        decryptor = cipher.decryptor()
-        decrypted = decryptor.update(ciphertext) + decryptor.finalize()
-        # Remove PKCS7 padding
-        padding_length = decrypted[-1]
-        return decrypted[:-padding_length].decode()

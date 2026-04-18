@@ -8,5 +8,32 @@
       "Bash(git commit -m ':*)",
       "Bash(ls:*)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && out=$(uv run --offline ruff check --fix 2>&1 | head -30); [ -n \"$out\" ] && jq -nc --arg ctx \"$out\" '{hookSpecificOutput: {hookEventName: \"PostToolUse\", additionalContext: $ctx}}' || true",
+            "timeout": 15,
+            "statusMessage": "ruff check"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && out=$(uv run --offline pytest --no-cov -q 2>&1); if [ $? -ne 0 ]; then jq -nc --arg ctx \"$out\" '{hookSpecificOutput: {hookEventName: \"Stop\", additionalContext: (\"Tests are failing at turn end:\\n\" + $ctx)}}'; fi",
+            "timeout": 120,
+            "statusMessage": "pytest"
+          }
+        ]
+      }
+    ]
   }
 }
