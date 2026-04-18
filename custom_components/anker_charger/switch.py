@@ -161,9 +161,6 @@ DEVICE_SWITCHES = [
 ]
 
 
-SITE_SWITCHES = []
-
-
 ACCOUNT_SWITCHES = [
     AnkerSolixSwitchDescription(
         key="allow_refresh",
@@ -179,8 +176,6 @@ ACCOUNT_SWITCHES = [
         },
     ),
 ]
-
-VEHICLE_SWITCHES: list[AnkerSolixSwitchDescription] = []
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -198,18 +193,10 @@ async def async_setup_entry(
         for context, data in coordinator.data.items():
             mdev = None
             mdata = {}
-            if (data_type := data.get("type")) == SolixDeviceType.SYSTEM.value:
-                # Unique key for site_id entry in data
-                entity_type = AnkerSolixEntityType.SITE
-                entity_list = SITE_SWITCHES
-            elif data_type == SolixDeviceType.ACCOUNT.value:
+            if data.get("type") == SolixDeviceType.ACCOUNT.value:
                 # Unique key for account entry in data
                 entity_type = AnkerSolixEntityType.ACCOUNT
                 entity_list = ACCOUNT_SWITCHES
-            elif data_type == SolixDeviceType.VEHICLE.value:
-                # vehicle entry in data
-                entity_type = AnkerSolixEntityType.VEHICLE
-                entity_list = VEHICLE_SWITCHES
             else:
                 # device_sn entry in data
                 entity_type = AnkerSolixEntityType.DEVICE
