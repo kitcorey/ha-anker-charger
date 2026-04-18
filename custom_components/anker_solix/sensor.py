@@ -56,7 +56,6 @@ from .entity import (
     get_AnkerSolixVehicleInfo,
 )
 from .solixapi.apitypes import (
-    SolarbankPpsStatus,
     SolixChargerPortStatus,
     SolixDeviceType,
     SolixPpsPortStatus,
@@ -618,10 +617,6 @@ class AnkerSolixSensor(CoordinatorEntity, SensorEntity):
                     ).get("product_code")
                 ) and hasattr(AnkerSolixPicturePath, pn):
                     self._attr_entity_picture = getattr(AnkerSolixPicturePath, pn)
-            elif self._attribute_name == "charging_status_desc":
-                # change the charing status options for matching device type
-                if data.get("type") == SolixDeviceType.SOLARBANK_PPS.value:
-                    self._attr_options = [status.name for status in SolarbankPpsStatus]
             # disable picture again if path does not exist to allow display of icons alternatively
             if (
                 self._attr_entity_picture

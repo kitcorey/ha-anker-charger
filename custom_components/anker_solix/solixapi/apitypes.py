@@ -780,59 +780,14 @@ class SolixDeviceType(Enum):
     VEHICLE = "vehicle"
 
 
-class SolixParmType(Enum):
-    """Enumeration for Anker Solix Parameter types."""
-
-    SOLARBANK_SCHEDULE = "4"
-    SOLARBANK_2_SCHEDULE = "6"
-    SOLARBANK_SCHEDULE_ENFORCED = "9"  # No longer supported by cloud as of July 2025
-    SOLARBANK_TARIFF_SCHEDULE = "12"
-    SOLARBANK_AUTHORIZATIONS = "13"
-    SOLARBANK_POWERDOCK = "16"  # get power dock SN
-    SOLARBANK_STATION = "18"  # station settings for site, like SOC reserve and grid export switch, works for systems that support power dock
-    SOLARBANK_POWER_LIMIT = "19"  # cannot be queried, but only set. get_power_limit query will show active data
-    # SOLARBANK_EV_CHARGER = "23" # EV Charger switch?
-    SOLARBANK_3RD_PARTY_PV = "26"  # third party PV settings for site
 
 
-class SolarbankPowerMode(IntEnum):
-    """Int Enumeration for Anker Solix Solarbank 1 Power setting modes."""
-
-    unknown = 0
-    normal = 1
-    advanced = 2
 
 
-class SolarbankDischargePriorityMode(IntEnum):
-    """Int Enumeration for Anker Solix Solarbank 1 Discharge priority setting modes."""
-
-    unknown = -1
-    off = 0
-    on = 1
 
 
-class SolarbankAiemsStatus(IntEnum):
-    """Int Enumeration for Anker Solix Solarbank Anker Intelligence status."""
-
-    unknown = 0
-    untrained = 3
-    learning = 4
-    trained = 5
 
 
-class SolarbankAiemsRuntimeStatus(IntEnum):
-    """Int Enumeration for Anker Solix Solarbank Anker Intelligence runtime status.
-
-    Following combinations of ai_ems status abd ai_ems runtime information were seen:
-    - left_time > 0 with runtime status 0 => learning phase status 4 without runtime failure
-    - left_time < 0 with runtime status 1 => trained and continues collecting data
-    - left_time < 0 with runtime status 2 => untrained, most likely failure during learning or learning stopped
-    """
-
-    unknown = -1
-    inactive = 0
-    running = 1
-    failure = 2
 
 
 class SolixTariffTypes(IntEnum):
@@ -864,18 +819,6 @@ class SolixDayTypes(StrEnum):
     ALL = "all"
 
 
-class SolarbankUsageMode(IntEnum):
-    """Int Enumeration for Anker Solix Solarbank 2/3 Power Usage modes."""
-
-    unknown = 0  # AC output based on measured smart meter power
-    smartmeter = 1  # AC output based on measured smart meter power
-    smartplugs = 2  # AC output based on measured smart plug power
-    manual = 3  # manual time plan for home load output
-    backup = 4  # This is used to reflect active backup mode in scene_info, but this mode cannot be set directly in schedule and mode is just temporary
-    use_time = 5  # Use Time plan with AC types and smart meter
-    # smart_learning = 6  # TODO(SB3): To be confirmed
-    smart = 7  # Smart mode for AI based charging and discharging
-    time_slot = 8  # Time slot mode for dynamic tariffs
 
 
 @dataclass(frozen=True)
@@ -1149,90 +1092,6 @@ class SolixDeviceCategory:
     A7320: str = SolixDeviceType.GENERATOR.value  # SOLIX Smart Generator 5500
 
 
-@dataclass(frozen=True)
-class SolarbankDeviceMetrics:
-    """Dataclass for Anker Solarbank metrics which should be tracked in device details cache depending on model type."""
-
-    # SOLIX Solarbank E1600, single MPPT without channel reporting
-    A17C0: ClassVar[set[str]] = set()
-    # SOLIX Solarbank 2 E1600 Pro, with 4 MPPT channel reporting and AC socket
-    A17C1: ClassVar[set[str]] = {
-        "sub_package_num",
-        "solar_power_1",
-        "solar_power_2",
-        "solar_power_3",
-        "solar_power_4",
-        "ac_power",
-        "to_home_load",
-        "pei_heating_power",
-        "power_limit",
-        "power_limit_option",
-    }
-    # SOLIX Solarbank 2 E1600 AC, witho 2 MPPT channel and AC socket
-    A17C2: ClassVar[set[str]] = {
-        "sub_package_num",
-        "solar_power_1",
-        "solar_power_2",
-        "ac_power",
-        "to_home_load",
-        "pei_heating_power",
-        "micro_inverter_power",  # This is external inverter input, counts to Solar power
-        "micro_inverter_power_limit",
-        "micro_inverter_low_power_limit",
-        "grid_to_battery_power",
-        "other_input_power",  # This is AC input for charging typically
-        "power_limit",
-        "power_limit_option",
-    }
-    # SOLIX Solarbank 2 E1600 Plus, with 2 MPPT
-    A17C3: ClassVar[set[str]] = {
-        "sub_package_num",
-        "solar_power_1",
-        "solar_power_2",
-        "to_home_load",
-        "pei_heating_power",
-        "power_limit",
-        "power_limit_option",
-    }
-    # SOLIX Solarbank 3 E2700, with 4 MPPT channel and AC socket
-    A17C5: ClassVar[set[str]] = {
-        "sub_package_num",
-        "solar_power_1",
-        "solar_power_2",
-        "solar_power_3",
-        "solar_power_4",
-        "ac_power",
-        "to_home_load",
-        "pei_heating_power",
-        "grid_to_battery_power",
-        "other_input_power",  # This is AC input for charging typically
-        "power_limit",
-        "pv_power_limit",
-        "ac_input_limit",
-        "power_limit_option",
-    }
-    # SOLIX Solarbank PPS F3000, with 2 MPPT channels
-    A1782: ClassVar[set[str]] = {
-        "sub_package_num",
-        "solar_power_1",
-        "solar_power_2",
-        "to_home_load",
-        "grid_to_battery_power",
-        "power_limit",
-        "pv_power_limit",
-        "ac_input_limit",
-    }
-    # Inverter Output Settings
-    INVERTER_OUTPUT_OPTIONS: ClassVar[dict[str, Any]] = {
-        "A5143": ["600", "800"],
-        "A17C1": ["350", "600", "800", "1000"],
-        "A17C2": ["350", "600", "800", "1000"],
-        "A17C3": ["350", "600", "800", "1000"],
-        "A17C5": ["350", "600", "800", "1200"],
-    }
-    MPPT_INPUT_OPTIONS: ClassVar[dict[str, Any]] = {
-        "A17C5": ["2000", "3600"],
-    }
 
 
 @dataclass(frozen=True)
@@ -1247,16 +1106,10 @@ class SolixDefaults:
     PRESET_MAX_MULTISYSTEM: int = 3600
     # Export Switch preset for Solarbank schedule timeslot settings
     ALLOW_EXPORT: bool = True
-    # Preset power mode for Solarbank schedule timeslot settings
-    POWER_MODE: int = SolarbankPowerMode.normal.value
-    # Preset usage mode for Solarbank 2 schedules
-    USAGE_MODE: int = SolarbankUsageMode.manual.value
     # Charge Priority limit preset for Solarbank schedule timeslot settings
     CHARGE_PRIORITY_MIN: int = 0
     CHARGE_PRIORITY_MAX: int = 100
     CHARGE_PRIORITY_DEF: int = 80
-    # Discharge Priority preset for Solarbank schedule timeslot settings
-    DISCHARGE_PRIORITY_DEF: int = SolarbankDischargePriorityMode.off.value
     # AC tariff settings for Use Time plan
     TARIFF_DEF: int = SolixTariffTypes.OFF_PEAK.value
     TARIFF_PRICE_DEF: str = "0.00"
@@ -1312,226 +1165,51 @@ class SolixDefaults:
     }
 
 
-class SolixDeviceStatus(StrEnum):
-    """Str Enumeration for Anker Solix Device status."""
-
-    # The device status code seems to be used for cloud connection status.
-    offline = "0"
-    online = "1"
-    unknown = "unknown"
 
 
-class SolarbankStatus(StrEnum):
-    """Str Enumeration for Anker Solix Solarbank status."""
-
-    detection = "0"  # Rare for SB1, frequent for SB2 especially in combination with Smartmeter in the morning
-    protection_charge = "03"  # For SB2 only when there is charge while output below demand in detection mode
-    bypass = "1"  # Bypass solar without charge
-    bypass_discharge = (
-        "12"  # pseudo state for SB2 if discharging in bypass mode, not possible for SB1
-    )
-    discharge = "2"  # only seen if no solar available
-    charge = "3"  # normal charge for battery
-    charge_bypass = "31"  # pseudo state, the solarbank does not distinguish this
-    charge_ac = "32"  # pseudo state, the solarbank does not distinguish this
-    charge_priority = "37"  # pseudo state, the solarbank does not distinguish this, when no output power exists while preset is ignored
-    wakeup = "4"  # Not clear what happens during this state, but observed short intervals during night, probably hourly? resync with the cloud
-    cold_wakeup = "116"  # At cold temperatures, 116 was observed instead of 4. Not sure why this state is different at low temps?
-    fully_charged = "5"  # Seen for SB2 when SOC is 100%
-    full_bypass = "6"  # seen at cold temperature, when battery must not be charged and the Solarbank bypasses all directly to inverter, also solar power < 25 W. More often with SB2
-    standby = "7"
-    unknown = "unknown"
     # TODO(SB3): Is there a new mode for AC charging? Can it be distinguished from existing values?
 
 
-class SolarbankPpsStatus(StrEnum):
-    """Str Enumeration for Anker Solix Solarbank PPS status."""
-
-    # 0: Standby?; 1: Discharge; 2: Charge
-    standby = "0"
-    discharge = "1"
-    charge = "2"
-    unknown = "unknown"
 
 
-class SolarbankLightMode(StrEnum):
-    """Str Enumeration for Anker Solix Solarbank light modes."""
-
-    normal = "0"
-    mood = "1"
-    unknown = "unknown"
 
 
-class SolarbankParallelTypes(StrEnum):
-    """Str Enumeration for Anker Solix Solarbank parallel types."""
-
-    single = "single"
-    cascaded = "cascaded"  # For SB1 only if SB1 is attached to SB2 in single system
-    ae100 = "ae100"  # Solarbank power dock in use
-    ae100v2 = "ae100v2"
-    diy = "diy"  # Solarbank 3 parallel without power dock
 
 
-class SmartmeterStatus(StrEnum):
-    """Str Enumeration for Anker Solix Smartmeter status."""
-
-    # TODO(#106) Update Smartmeter grid status description once known
-    ok = "0"  # normal grid state when smart meter is measuring
-    unknown = "unknown"
 
 
-class PowerdockStatus(StrEnum):
-    """Str Enumeration for Anker Solix Power Dock status."""
-
-    # TODO(#AE100) Update status description once known
-    ok = "0"  # normal power dock state (AE100)
-    unknown = "unknown"
 
 
-class PowerdockChargingStatus(StrEnum):
-    """Str Enumeration for Anker Solix Power Dock charging status."""
-
-    # TODO(#AX170) Update status description once known, is this only a half byte usage?
-    idle = "32"  # 0010 0000
-    charging = "48"  # 0011 0000
-    discharging = "64"  # 0100 0000
-    unknown = "unknown"
 
 
-class SolarbankGridStatus(StrEnum):
-    """Str Enumeration for Anker Solarbank grid status."""
-
-    connected = "1"  # normal grid state
-    connecting = "3"  # Grid detected, going into normal state
-    disconnected = "6"  # No grid available
-    unknown = "unknown"
 
 
-class SolixGridStatus(StrEnum):
-    """Str Enumeration for Anker Solix grid status."""
-
-    # TODO(X1) Update grid status description once known
-    ok = "0"  # normal grid state when hes pcu grid status is ok
-    unknown = "unknown"
 
 
-class SolixPlantStatus(StrEnum):
-    """Str Enumeration for Anker Solix plant status."""
-
-    # 1: On-grid; 2: Off-grid 3: Standby 4: Fault
-    on_grid = "1"
-    off_grid = "2"
-    standby = "3"
-    fault = "4"
-    unknown = "unknown"
 
 
-class SolixBatteryStatus(StrEnum):
-    """Str Enumeration for Anker Solix battery status."""
-
-    # 0: Standby; 1: Charging; 2: Discharging; 3: Sleep
-    standby = "0"
-    charging = "1"
-    discharging = "2"
-    sleep = "3"
-    unknown = "unknown"
 
 
-class SolixRoleStatus(StrEnum):
-    """Str Enumeration for Anker Solix role status of devices."""
-
-    # The device role status codes as used for HES devices
-    # TODO(X1): The proper description of those codes has to be confirmed
-    primary = "1"  # Master role in Api
-    subordinate = "2"  # Slave role in Api
-    unknown = "unknown"
 
 
-class SolixNetworkStatus(StrEnum):
-    """Str Enumeration for Anker Solix HES network status."""
-
-    # TODO(X1): The proper description of those codes has to be confirmed
-    wifi = "1"  # to be confirmed
-    lan = "2"  # this was seen on LAN connected systems
-    mobile = "3"  # HES systems support also 5G connections, code to be confirmed
-    unknown = "unknown"
 
 
-class SolixWorkingStatus(StrEnum):
-    """Str Enumeration for Anker Solix HES working status."""
-
-    # TODO(X1): The proper description of those codes has to be confirmed
-    standby = "0"
-    running = "1"
-    unknown = "unknown"
 
 
-class SolixMode(StrEnum):
-    """Str Enumeration for Anker Solix HES mode."""
-
-    # TODO(X1): The proper description of those codes has to be confirmed
-    off = "0"
-    on = "1"
-    auto = "2"
-    unknown = "unknown"
 
 
-class SolixSwitchMode(IntEnum):
-    """Int Enumeration for generic Anker Solix switch modes."""
-
-    off = 0
-    on = 1
-    unknown = -1
 
 
-class SolixSwitchModeV2(StrEnum):
-    """Str Enumeration for generic Anker Solix switch modes V2."""
-
-    on = "1"
-    off = "2"
-    unknown = "unknown"
 
 
-class SolixPpsOutputStatus(StrEnum):
-    """Str Enumeration for Anker Solix PPS output status."""
-
-    smart = "0"
-    normal = "1"
-    unknown = "unknown"
 
 
-class SolixPpsOutputMode(StrEnum):
-    """Str Enumeration for Anker Solix PPS output modes."""
-
-    normal = "1"
-    smart = "2"
-    unknown = "unknown"
 
 
-class SolixPpsOutputModeV2(StrEnum):
-    """Str Enumeration for Anker Solix PPS output modes."""
-
-    normal = "0"
-    smart = "1"
-    unknown = "unknown"
 
 
-class SolixPpsChargingStatus(StrEnum):
-    """Str Enumeration for Anker Solix PPS charging status."""
-
-    inactive = "0"
-    solar = "1"
-    input_power = "2"  # could be AC or DC input depending on device
-    both = "3"
-    unknown = "unknown"
 
 
-class SolixPpsDcChargingStatus(StrEnum):
-    """Str Enumeration for Anker Solix PPS DC charging status."""
-
-    inactive = "0"
-    charging = "1"
-    unknown = "unknown"
 
 
 class SolixPpsPortStatus(StrEnum):
@@ -1543,15 +1221,6 @@ class SolixPpsPortStatus(StrEnum):
     unknown = "unknown"
 
 
-class SolixPpsDisplayMode(StrEnum):
-    """Str Enumeration for Anker Solix PPS display and light modes."""
-
-    off = "0"
-    low = "1"
-    medium = "2"
-    high = "3"
-    blinking = "4"
-    unknown = "unknown"
 
 
 class SolixChargerPortStatus(StrEnum):
@@ -1562,134 +1231,28 @@ class SolixChargerPortStatus(StrEnum):
     unknown = "unknown"
 
 
-class SolixPhaseMode(StrEnum):
-    """Str Enumeration for Anker Solix Phase operation mode."""
-
-    automatic = "0"
-    one_phase = "1"
-    # three_phase = "2"
-    unknown = "unknown"
 
 
-class SolixOcppConnectionStatus(StrEnum):
-    """Str Enumeration for OCPP connection status."""
-
-    disconnected = "0"
-    connecting = "1"
-    connected = "2"
-    unknown = "unknown"
 
 
-class SolixConnectionStatus(StrEnum):
-    """Str Enumeration for generic connection status."""
-
-    disconnected = "0"
-    connected = "1"
-    unknown = "unknown"
 
 
-class SolixCpSignalStatus(StrEnum):
-    """Str Enumeration for CP Signal status."""
-
-    a_12v = "0"
-    b1_9v = "3"
-    b2_9v = "4"
-    c1_6v = "5"
-    c2_6v = "6"
-    error = "7"
-    d1_3v = "8"
-    d2_3v = "9"
-    e_0v = "10"
-    f_minus_12v = "11"
-    unknown = "unknown"
 
 
-class SolixEvChargerStatus(StrEnum):
-    """Str Enumeration for EV Charger status."""
-
-    standby = "0"
-    preparing = "1"
-    charging = "2"
-    charger_paused = "3"
-    vehicle_paused = "4"
-    completed = "5"
-    reserving = "6"
-    disabled = "7"
-    error = "8"
-    unknown = "unknown"
 
 
-class SolixEvChargerMode(StrEnum):
-    """Str Enumeration for EV Charger operational mode."""
-
-    start_charge = "1"
-    stop_charge = "2"
-    skip_delay = "3"
-    boost_charge = "4"
-    unknown = "unknown"
 
 
-class SolixEvChargerWipeMode(StrEnum):
-    """Str Enumeration for EV Charger Smart Touch Wipe modes."""
-
-    off = "0"
-    start_charge = "1"
-    stop_charge = "2"
-    boost_charge = "3"
-    unknown = "unknown"
 
 
-class SolixSmartTouchMode(StrEnum):
-    """Str Enumeration for EV Charger Smart Touch mode."""
-
-    simple = "0"
-    anti_mistouch = "1"
-    unknown = "unknown"
 
 
-class SolixEvChargerSolarMode(StrEnum):
-    """Str Enumeration for EV Charger Solar charging mode."""
-
-    solar_grid = "0"
-    solar_only = "1"
-    unknown = "unknown"
 
 
-class SolixScheduleWeekendMode(StrEnum):
-    """Str Enumeration for schedule weekend mode."""
-
-    same = "1"
-    different = "2"
-    unknown = "unknown"
 
 
-@dataclass
-class SolarbankTimeslot:
-    """Dataclass to define customizable attributes of an Anker Solix Solarbank time slot as used for the schedule definition or update."""
-
-    start_time: datetime
-    end_time: datetime
-    appliance_load: int | None = (
-        None  # mapped to appliance_loads setting using a default 50% share for dual solarbank setups
-    )
-    device_load: int | None = (
-        None  # mapped to device load setting of provided solarbank serial
-    )
-    allow_export: bool | None = None  # mapped to the turn_on boolean
-    charge_priority_limit: int | None = None  # mapped to charge_priority setting
-    discharge_priority: int | None = None  # mapped to discharge priority setting
 
 
-@dataclass
-class Solarbank2Timeslot:
-    """Dataclass to define customizable attributes of an Anker Solix Solarbank 2/3 time slot as used for the schedule definition, update or deletion."""
-
-    start_time: datetime | None
-    end_time: datetime | None
-    appliance_load: int | None = None  # mapped to appliance_load setting
-    weekdays: set[int | str] | None = (
-        None  # set of weekday numbers or abbreviations where this slot applies, defaulting to all if None. sun = 0, sat = 6
-    )
 
 
 @dataclass(order=True, kw_only=True)
