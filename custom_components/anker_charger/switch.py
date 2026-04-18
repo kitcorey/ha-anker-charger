@@ -46,9 +46,6 @@ from .entity import (
     AnkerSolixEntityType,
     get_AnkerSolixAccountInfo,
     get_AnkerSolixDeviceInfo,
-    get_AnkerSolixSubdeviceInfo,
-    get_AnkerSolixSystemInfo,
-    get_AnkerSolixVehicleInfo,
 )
 from .solixapi.apitypes import SolixDeviceType
 from .solixapi.mqtt_device import SolixMqttDevice
@@ -289,14 +286,9 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
         if self.entity_type == AnkerSolixEntityType.DEVICE:
             # get the device data from device context entry of coordinator data
             data = coordinator.data.get(context) or {}
-            if data.get("is_subdevice"):
-                self._attr_device_info = get_AnkerSolixSubdeviceInfo(
-                    data, context, data.get("main_sn")
-                )
-            else:
-                self._attr_device_info = get_AnkerSolixDeviceInfo(
-                    data, context, coordinator.client.api.apisession.email
-                )
+            self._attr_device_info = get_AnkerSolixDeviceInfo(
+                data, context, coordinator.client.api.apisession.email
+            )
             # add service attribute for manageable devices
             self._attr_supported_features: AnkerSolixEntityFeature = (
                 description.feature if data.get("is_admin", False) else None
@@ -306,22 +298,6 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
             data = coordinator.data.get(context) or {}
             self._attr_device_info = get_AnkerSolixAccountInfo(data, context)
             # add service attribute for account entities
-            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
-        elif self.entity_type == AnkerSolixEntityType.VEHICLE:
-            # get the vehicle info data from vehicle entry of coordinator data
-            data = coordinator.data.get(context) or {}
-            self._attr_device_info = get_AnkerSolixVehicleInfo(
-                data, context, coordinator.client.api.apisession.email
-            )
-            # add service attribute for vehicle entities
-            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
-        else:
-            # get the site info data from site context entry of coordinator data
-            data = (coordinator.data.get(context, {})).get("site_info", {})
-            self._attr_device_info = get_AnkerSolixSystemInfo(
-                data, context, coordinator.client.api.apisession.email
-            )
-            # add service attribute for site entities
             self._attr_supported_features: AnkerSolixEntityFeature = description.feature
 
         self._attr_is_on = None
