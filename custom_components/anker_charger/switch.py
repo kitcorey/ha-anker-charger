@@ -1,4 +1,4 @@
-"""Switch platform for anker_solix."""
+"""Switch platform for the Anker Charger integration."""
 
 from __future__ import annotations
 
@@ -268,7 +268,7 @@ async def async_setup_entry(
 
 
 class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
-    """anker_solix switch class."""
+    """Anker Charger switch class."""
 
     coordinator: AnkerSolixDataUpdateCoordinator
     entity_description: AnkerSolixSwitchDescription
@@ -690,7 +690,7 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
 
 
 class AnkerSolixRestoreSwitch(AnkerSolixSwitch, RestoreEntity):
-    """anker_solix switch class with restore capability."""
+    """Anker Charger switch class with restore capability."""
 
     def __init__(
         self,

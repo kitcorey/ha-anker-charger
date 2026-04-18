@@ -83,7 +83,7 @@
                 "peak": "Temps de pointe",
                 "mid_peak": "Temps de pointe moyen",
                 "off_peak": "Hors heures de pointe",
-                    "valley": "Vallée"
+                "valley": "Vallée"
             }
         },
         "request_method": {
@@ -100,7 +100,7 @@
     "config": {
         "step": {
             "user": {
-                "title": "Ajoutez vos appareils Anker Solix",
+                "title": "Ajoutez vos station de charge Anker",
                 "description": "Entrez les identifiants de votre compte cloud Anker",
                 "data": {
                     "username": "Nom d'utilisateur/e-mail",
@@ -128,7 +128,7 @@
                 }
             },
             "user_options": {
-                "title": "Options Anker Solix",
+                "title": "Options Anker Charger",
                 "description": "Modifier l'utilisation de cette configuration",
                 "data": {
                     "exclude": "Catégories d'entités exclues"
@@ -199,7 +199,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "Options Anker Solix",
+                "title": "Options Anker Charger",
                 "description": "Modifier l'utilisation de cette configuration",
                 "data": {
                     "exclude": "Catégories d'entités exclues"
@@ -260,7 +260,7 @@
     "issues": {
         "duplicate_devices": {
             "description": "{username} a partagé des appareils avec le compte existant {shared_account} configuré dans le hub {name}. Tu ne peux pas configurer les deux hubs en même temps!",
-            "title": "Numéros de série dupliqués trouvés pour les appareils Anker Solix"
+            "title": "Numéros de série dupliqués trouvés"
         }
     },
     "entity": {
@@ -746,8 +746,8 @@
                     "discharge": "Décharge",
                     "charge": "Charge",
                     "charge_bypass": "Charge et Bypass",
-                    "charge_priority":  "Charge prioritaire",
-                    "charge_ac":  "Charge CA",
+                    "charge_priority": "Charge prioritaire",
+                    "charge_ac": "Charge CA",
                     "full_bypass": "Bypass 100%",
                     "wakeup": "Réveil",
                     "cold_wakeup": "Réveil froid",
@@ -1992,7 +1992,7 @@
                     }
                 }
             },
-             "remaining_time_hours": {
+            "remaining_time_hours": {
                 "name": "Temps restant"
             },
             "main_battery_soc": {
@@ -2426,7 +2426,7 @@
     },
     "exceptions": {
         "increase_blocked": {
-          "message": "{entity_id} ne peut pas être augmentée à {value} parce que la dernière modification a été faite il y a moins de {delay} secondes"
+            "message": "{entity_id} ne peut pas être augmentée à {value} parce que la dernière modification a été faite il y a moins de {delay} secondes"
         },
         "out_of_range": {
             "message": "{entity_id} ne peut pas être changé en {value} car il est en dehors de la plage autorisée {min}-{max}"

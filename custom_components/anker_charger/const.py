@@ -7,10 +7,10 @@ from homeassistant.const import Platform
 
 LOGGER: Logger = getLogger(__package__)
 
-NAME: Final[str] = "Anker Solix"
-DOMAIN: Final[str] = "anker_solix"
+NAME: Final[str] = "Anker Charger"
+DOMAIN: Final[str] = "anker_charger"
 MANUFACTURER: Final[str] = "Anker"
-ATTRIBUTION: Final[str] = "Data provided by Anker Solix Api"
+ATTRIBUTION: Final[str] = "Data provided by the Anker cloud API"
 ACCEPT_TERMS: Final[str] = "accept_terms"
 TERMS_LINK: Final[str] = "terms_link"
 MQTT_LINK: Final[str] = "mqtt_link"
@@ -18,7 +18,7 @@ TC_LINK: Final[str] = (
     "https://github.com/kitcorey/ha-anker-solix/blob/main/README.md"
 )
 MQ_LINK: Final[str] = (
-    "https://github.com/thomluther/ha-anker-solix#mqtt-managed-devices"
+    "https://github.com/kitcorey/ha-anker-solix#mqtt"
 )
 
 PLATFORMS: list[Platform] = [

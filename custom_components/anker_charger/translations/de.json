@@ -100,7 +100,7 @@
     "config": {
         "step": {
             "user": {
-                "title": "Füge deine Anker Solix Geräte hinzu",
+                "title": "Füge deine Anker-Ladestation hinzu",
                 "description": "Gib die Anmeldeinformationen für deinen Anker Cloud Zugang ein",
                 "data": {
                     "username": "Benutzername/e-Mail",
@@ -128,7 +128,7 @@
                 }
             },
             "user_options": {
-                "title": "Anker Solix Optionen",
+                "title": "Anker Charger Optionen",
                 "description": "Ändere die Nutzung der Hub Konfiguration",
                 "data": {
                     "exclude": "Ausschliesbare Entitäts-Kategorien"
@@ -199,7 +199,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "Anker Solix Optionen",
+                "title": "Anker Charger Optionen",
                 "description": "Ändere die Nutzung der Hub Konfiguration",
                 "data": {
                     "exclude": "Ausgeschlossene Entitäts-Kategorien"
@@ -260,7 +260,7 @@
     "issues": {
         "duplicate_devices": {
             "description": "{username} teilt Geräte mit dem bestehenden Konto {shared_account}, das im Hub {name} konfiguriert ist. Es können nicht beide Hubs gleichzeitig konfiguriert werden!",
-            "title": "Doppelte Seriennummern von Anker Solix Geräten gefunden"
+            "title": "Doppelte Seriennummern gefunden"
         }
     },
     "entity": {
@@ -746,8 +746,8 @@
                     "discharge": "Entladung",
                     "charge": "Aufladung",
                     "charge_bypass": "Überschussladung",
-                    "charge_priority":  "Ladepriorität",
-                    "charge_ac":  "AC Aufladung",
+                    "charge_priority": "Ladepriorität",
+                    "charge_ac": "AC Aufladung",
                     "full_bypass": "Voller Bypass",
                     "wakeup": "Wachzustand",
                     "cold_wakeup": "Kalter Wachzustand",
@@ -2319,7 +2319,7 @@
                     "name": "Plan",
                     "description": "Wähle den zu bearbeitenden Plan, standardmäßig wird der Plan für den aktiven Benutzermodus gewählt (ignoriert für Solarbank 1)"
                 },
-                    "week_days": {
+                "week_days": {
                     "name": "Wochentage",
                     "description": "Wochentage für das definierte Zeitintervall (ignoriert für Solarbank 1)"
                 },
@@ -2426,7 +2426,7 @@
     },
     "exceptions": {
         "increase_blocked": {
-          "message": "{entity_id} kann nicht auf {value} erhöht werden weil die letzte Änderung vor weniger als {delay} Sekunden gemacht wurde"
+            "message": "{entity_id} kann nicht auf {value} erhöht werden weil die letzte Änderung vor weniger als {delay} Sekunden gemacht wurde"
         },
         "out_of_range": {
             "message": "{entity_id} kann nicht auf {value} geändert werden weil es ausserhalb des erlaubten Bereiches von {min}-{max} liegt"

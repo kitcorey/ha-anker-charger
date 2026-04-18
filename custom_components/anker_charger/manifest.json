@@ -1,0 +1,21 @@
+{
+  "domain": "anker_charger",
+  "name": "Anker Charger (A91B2)",
+  "after_dependencies": [],
+  "codeowners": [
+    "@kitcorey"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/kitcorey/ha-anker-solix",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/kitcorey/ha-anker-solix/issues",
+  "requirements": [
+    "aiohttp>=3.10.11",
+    "aiofiles>=23.2.0",
+    "cryptography>=3.4.8",
+    "paho-mqtt>=2.1.0"
+  ],
+  "version": "1.0.0"
+}

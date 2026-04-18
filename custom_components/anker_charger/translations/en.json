@@ -100,7 +100,7 @@
     "config": {
         "step": {
             "user": {
-                "title": "Add your Anker Solix devices",
+                "title": "Add your Anker charging station",
                 "description": "Enter credentials for your Anker cloud account",
                 "data": {
                     "username": "Username/e-mail",
@@ -128,55 +128,25 @@
                 }
             },
             "user_options": {
-                "title": "Anker Solix options",
-                "description": "Change usage of hub configuration",
+                "title": "Anker Charger options",
+                "description": "Configure refresh interval and MQTT settings",
                 "data": {
-                    "exclude": "Excludable entity categories"
+                    "scan_interval": "Update interval"
                 },
                 "data_description": {
-                    "exclude": "Depending on the excluded categories shown above, the number of entities and API requests can be reduced (especially for energy categories)"
+                    "scan_interval": "Note: the cloud API only publishes updates every 60-300 seconds. Values below 60 s only help in combination with MQTT real-time data."
                 },
                 "sections": {
-                    "api_options": {
-                        "name": "Api options",
-                        "description": "Modify options for Anker power cloud server Api",
-                        "data": {
-                            "scan_interval": "Update interval",
-                            "dev_interval_mult": "Interval multiplier for device details",
-                            "delay_time": "Delay for subsequent Api requests",
-                            "timeout": "Timeout for Api requests",
-                            "endpoint_limit": "Endpoint request limit per minute",
-                            "skip_invalid": "Skip invalid data responses"
-                        },
-                        "data_description": {
-                            "scan_interval": "Note: The data on the cloud server is updated every 60-300 seconds at most if no MQTT real-time data update has been triggered. An update interval of less than 60 seconds therefore only offers advantages in conjunction with MQTT use.",
-                            "endpoint_limit": "Note: The Anker cloud Api enforces a request limit per minute and endpoint. To avoid Api errors, identical endpoint requests are throttled to 10 per minute once the limit has been exceeded. With 0 you can deactivate endpoint throttling.",
-                            "skip_invalid": "Note: Cloud responses with invalid or stale data will make entities unavailable. You can skip entity updates until next valid data is received again."
-                        }
-                    },
                     "mqtt_options": {
                         "name": "MQTT options",
-                        "description": "Modify options for Anker MQTT server usage",
+                        "description": "Modify options for the Anker MQTT broker",
                         "data": {
                             "mqtt_usage": "MQTT server usage",
                             "trigger_timeout": "Real time data trigger timeout"
                         },
                         "data_description": {
-                            "mqtt_usage": "Note: MQTT usage may enable additional entities and controls for your owned devices. This heavily depends on known MQTT message decoding of your device.\nFurther information: {mqtt_link}",
-                            "trigger_timeout": "Devices publish real time data only if triggered. The timeout is the publish duration if not triggered again."
-                        }
-                    },
-                    "test_options": {
-                        "name": "Test options",
-                        "description": "Modify options for testing the integration",
-                        "data": {
-                            "testmode": "Integration test mode usage",
-                            "testfolder": "Folder with json files for integration testing",
-                            "mqtt_test_speed": "Speed factor for MQTT message simulation"
-                        },
-                        "data_description": {
-                            "testmode": "In test mode, the configuration only uses the json files in the selected folder to create devices and sensors for test purposes. Server communication then no longer takes place.",
-                            "mqtt_test_speed": "If the folder contains a sequence of MQTT message files, these are simulated using the selected speed factor."
+                            "mqtt_usage": "The A91B2 publishes USB/AC port data only via MQTT; disabling this leaves you with only cloud-sourced sensors.\nFurther information: {mqtt_link}",
+                            "trigger_timeout": "How long the device keeps streaming realtime data before the integration has to re-trigger it."
                         }
                     }
                 }
@@ -199,68 +169,35 @@
     "options": {
         "step": {
             "init": {
-                "title": "Anker Solix options",
-                "description": "Change usage of hub configuration",
+                "title": "Anker Charger options",
+                "description": "Configure refresh interval and MQTT settings",
                 "data": {
-                    "exclude": "Excluded entity categories"
+                    "scan_interval": "Update interval"
                 },
                 "data_description": {
-                    "exclude": "Depending on selected (= excluded) entity categories, the number of Api requests can be reduced (especially for energy categories)"
+                    "scan_interval": "Note: the cloud API only publishes updates every 60-300 seconds. Values below 60 s only help in combination with MQTT real-time data."
                 },
                 "sections": {
-                    "api_options": {
-                        "name": "Api options",
-                        "description": "Modify options for Anker power cloud server Api",
-                        "data": {
-                            "scan_interval": "Update interval",
-                            "dev_interval_mult": "Interval multiplier for device details",
-                            "delay_time": "Delay for subsequent Api requests",
-                            "timeout": "Timeout for Api requests",
-                            "endpoint_limit": "Endpoint request limit per minute",
-                            "skip_invalid": "Skip invalid data responses"
-                        },
-                        "data_description": {
-                            "scan_interval": "Note: The data on the cloud server is updated every 60-300 seconds at most if no MQTT real-time data update has been triggered. An update interval of less than 60 seconds therefore only offers advantages in conjunction with MQTT use.",
-                            "endpoint_limit": "Note: The Anker cloud Api enforces a request limit per minute and endpoint. To avoid Api errors, identical endpoint requests are throttled to 10 per minute once the limit has been exceeded. With 0 you can deactivate endpoint throttling.",
-                            "skip_invalid": "Note: Cloud responses with invalid or stale data will make entities unavailable. You can skip entity updates until next valid data is received again."
-                        }
-                    },
                     "mqtt_options": {
                         "name": "MQTT options",
-                        "description": "Modify options for Anker MQTT server usage",
+                        "description": "Modify options for the Anker MQTT broker",
                         "data": {
                             "mqtt_usage": "MQTT server usage",
                             "trigger_timeout": "Real time data trigger timeout"
                         },
                         "data_description": {
-                            "mqtt_usage": "Note: MQTT usage may enable additional entities and controls for your owned devices. This heavily depends on known MQTT message decoding of your device.\nFurther information: {mqtt_link}",
-                            "trigger_timeout": "Devices publish real time data only if triggered. The timeout is the publish duration if not triggered again."
-                        }
-                    },
-                    "test_options": {
-                        "name": "Test options",
-                        "description": "Modify options for testing the integration",
-                        "data": {
-                            "testmode": "Integration test mode usage",
-                            "testfolder": "Folder with json files for integration testing",
-                            "mqtt_test_speed": "Speed factor for MQTT message simulation"
-                        },
-                        "data_description": {
-                            "testmode": "In test mode, the configuration only uses the json files in the selected folder to create devices and sensors for test purposes. Server communication then no longer takes place.",
-                            "mqtt_test_speed": "If the folder contains a sequence of MQTT message files, these are simulated using the selected speed factor."
+                            "mqtt_usage": "The A91B2 publishes USB/AC port data only via MQTT; disabling this leaves you with only cloud-sourced sensors.\nFurther information: {mqtt_link}",
+                            "trigger_timeout": "How long the device keeps streaming realtime data before the integration has to re-trigger it."
                         }
                     }
                 }
             }
-        },
-        "error": {
-            "folder_invalid": "Valid folder required for testmode"
         }
     },
     "issues": {
         "duplicate_devices": {
             "description": "{username} has shared devices with existing account {shared_account} configured in hub {name}, you cannot configure both hubs at the same time!",
-            "title": "Duplicate Anker Solix device serials found"
+            "title": "Duplicate charger serials found"
         }
     },
     "entity": {

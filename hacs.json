@@ -1,5 +1,5 @@
 {
-    "name": "Anker Solix",
+    "name": "Anker Charger (A91B2)",
     "homeassistant": "2025.3.0",
     "persistent_directory": "solixapi/authcache",
     "render_readme": true

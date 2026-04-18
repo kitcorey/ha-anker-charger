@@ -1,4 +1,4 @@
-"""Sensor platform for anker_solix."""
+"""Sensor platform for the Anker Charger integration."""
 
 from __future__ import annotations
 
