@@ -56,3 +56,6 @@ max-complexity = 25
     "D107",  # missing __init__ docstring
     "SLF001",  # private member accessed (tests need this for decoder internals)
 ]
+"scripts/**/*.py" = [
+    "T201",  # print is the primary output channel for CLI helper scripts
+]

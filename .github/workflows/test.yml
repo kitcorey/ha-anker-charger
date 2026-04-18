@@ -35,3 +35,49 @@ jobs:
           name: "coverage-xml"
           path: "coverage.xml"
           if-no-files-found: "ignore"
+
+  coverage-gate:
+    # Fail the PR if total line coverage drops by more than 1 percentage point
+    # versus the PR's base branch. No fixed floor — this only catches
+    # regressions, it never rewards padding.
+    name: "coverage gate"
+    if: "github.event_name == 'pull_request'"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout PR head (with history)"
+        uses: "actions/checkout@v6.0.2"
+        with:
+          fetch-depth: 0
+
+      - name: "Install uv"
+        uses: "astral-sh/setup-uv@v4"
+        with:
+          enable-cache: true
+
+      - name: "Install Python"
+        run: "uv python install"
+
+      - name: "Sync dev dependencies (PR head)"
+        run: "uv sync --group dev"
+
+      - name: "Run pytest on PR head"
+        run: "uv run pytest --cov-report=xml:/tmp/cov-pr.xml --cov-report=term"
+
+      - name: "Stash the comparison script"
+        # The base branch may not contain scripts/compare_coverage.py if this
+        # PR introduces or modifies it — stage it under /tmp so the final
+        # compare step runs the PR version regardless.
+        run: "cp scripts/compare_coverage.py /tmp/compare_coverage.py"
+
+      - name: "Check out PR base"
+        run: "git checkout ${{ github.event.pull_request.base.sha }}"
+
+      - name: "Sync dev dependencies (base)"
+        # dev deps may have shifted between base and PR; resync.
+        run: "uv sync --group dev"
+
+      - name: "Run pytest on PR base"
+        run: "uv run pytest --cov-report=xml:/tmp/cov-base.xml --cov-report=term"
+
+      - name: "Compare coverage"
+        run: "uv run python /tmp/compare_coverage.py /tmp/cov-base.xml /tmp/cov-pr.xml --max-drop 1.0"
