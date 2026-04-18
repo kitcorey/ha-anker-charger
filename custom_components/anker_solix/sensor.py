@@ -125,6 +125,26 @@ class AnkerSolixSensorDescription(
 
 DEVICE_SENSORS = [
     AnkerSolixSensorDescription(
+        # Firmware version from cloud bind_devices payload; registers charger
+        # device in HA registry even when MQTT is disabled or not yet connected.
+        key="sw_version",
+        translation_key="sw_version",
+        json_key="sw_version",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixSensorDescription(
+        key="wifi_signal",
+        translation_key="wifi_signal",
+        json_key="wifi_signal",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        attrib_fn=lambda d, _: {"rssi": d.get("rssi")},
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixSensorDescription(
         # timestamp of last MQTT message with any update
         key="mqtt_timestamp",
         translation_key="mqtt_timestamp",
