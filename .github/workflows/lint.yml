@@ -7,8 +7,8 @@ on:
     branches: ["main"]
 
 jobs:
-  ruff:
-    name: "Ruff"
+  pre-commit:
+    name: "pre-commit"
     runs-on: "ubuntu-latest"
     steps:
       - name: "Checkout the repository"
@@ -25,5 +25,5 @@ jobs:
       - name: "Sync dev dependencies"
         run: "uv sync --group dev"
 
-      - name: "Run ruff"
-        run: "uv run ruff check ."
+      - name: "Run pre-commit"
+        run: "uv run pre-commit run --all-files --show-diff-on-failure"

@@ -1423,14 +1423,3 @@ class AnkerSolixBaseApi:
                 err,
             )
         return products
-
-
-
-
-
-
-
-
-
-
-

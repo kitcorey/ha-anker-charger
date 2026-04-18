@@ -43,12 +43,35 @@ Pin a specific HA release by setting `HA_VERSION=2026.4.3` in `.env`, then
 
 ## Lint
 
+Install once:
+
 ```bash
-docker run --rm -v "$PWD":/work -w /work ghcr.io/astral-sh/ruff:latest \
-  check custom_components/
+uv sync --group dev
+uv run pre-commit install
 ```
 
-The config lives in `.ruff.toml` at the repo root.
+The pre-commit hook runs ruff (with autofix) plus the standard yaml/toml/json
+and whitespace checks on every commit. Configuration lives in
+`.pre-commit-config.yaml` and `.ruff.toml`.
+
+To run the full check without staging anything:
+
+```bash
+uv run pre-commit run --all-files
+```
+
+Or just ruff on its own:
+
+```bash
+scripts/lint
+```
+
+## Tests
+
+```bash
+scripts/test           # quick: runs pytest with coverage
+scripts/test -k foo    # pytest args pass through
+```
 
 ## License
 

@@ -1,0 +1,20 @@
+# See https://pre-commit.com for the full config reference.
+# Install with: `uv run pre-commit install`
+# Run manually against all files: `uv run pre-commit run --all-files`
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Keep the rev in sync with the `ruff` pin in pyproject.toml's dev group.
+    rev: v0.15.8
+    hooks:
+      - id: ruff-check
+        args: ["--fix"]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
