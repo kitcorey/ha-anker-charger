@@ -429,9 +429,3 @@ class AnkerSolixApiClient:
             raise AnkerSolixApiClientError(
                 f"Api Client Error: {type(exception)}: {exception}"
             ) from exception
-
-    # Dummy kept so coordinator.py's vehicle branch (dead but not yet pruned)
-    # still resolves on import until Phase 6 cleanup.
-    def get_registered_vehicles(self) -> list:
-        """Stub: vehicles are not supported in this fork."""
-        return []
