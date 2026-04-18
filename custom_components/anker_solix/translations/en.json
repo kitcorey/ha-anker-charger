@@ -1058,6 +1058,14 @@
             "sw_version": {
                 "name": "Firmware"
             },
+            "wifi_signal": {
+                "name": "Wi-Fi signal",
+                "state_attributes": {
+                    "rssi": {
+                        "name": "RSSI"
+                    }
+                }
+            },
             "sub_package_num": {
                 "name": "Expansion batteries"
             },
