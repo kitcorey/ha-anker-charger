@@ -101,146 +101,6 @@ class AnkerSolixSwitchDescription(
 
 DEVICE_SWITCHES = [
     AnkerSolixSwitchDescription(
-        key="auto_upgrade",
-        translation_key="auto_upgrade",
-        json_key="auto_upgrade",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-    ),
-    AnkerSolixSwitchDescription(
-        key="preset_allow_export",
-        translation_key="preset_allow_export",
-        json_key="preset_allow_export",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        force_creation_fn=lambda d, jk: jk in d and d.get("cascaded"),
-    ),
-    AnkerSolixSwitchDescription(
-        key="preset_discharge_priority",
-        translation_key="preset_discharge_priority",
-        json_key="preset_discharge_priority",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        force_creation_fn=lambda d, jk: jk in d and d.get("cascaded"),
-    ),
-    AnkerSolixSwitchDescription(
-        key="preset_backup_option",
-        translation_key="preset_backup_option",
-        json_key="preset_backup_option",
-        feature=AnkerSolixEntityFeature.AC_CHARGE,
-        exclude_fn=lambda s, d: (
-            not (
-                {d.get("type")} - s
-                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
-            )
-        ),
-    ),
-    AnkerSolixSwitchDescription(
-        key="allow_grid_export",
-        translation_key="allow_grid_export",
-        json_key="allow_grid_export",
-        value_fn=lambda d, jk: (
-            (not v if (v := d.get("grid_export_disabled")) is not None else d.get(jk))
-            if d.get(MQTT_OVERLAY)
-            else (
-                v
-                if (v := d.get(jk)) is not None
-                else not v
-                if (v := d.get("grid_export_disabled")) is not None
-                else None
-            )
-        ),
-        exclude_fn=lambda s, d: (
-            not (
-                {d.get("type")} - s
-                and d.get("mqtt_data")
-                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
-            )
-        ),
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.sb_disable_grid_export_switch,
-        mqtt_cmd_parm="set_disable_grid_export_switch",
-        api_cmd=True,
-    ),
-    AnkerSolixSwitchDescription(
-        # SB Light switch
-        key="light_switch",
-        translation_key="light_switch",
-        json_key="light_off_switch",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        device_class=SwitchDeviceClass.SWITCH,
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.sb_light_switch,
-        inverted=True,
-    ),
-    AnkerSolixSwitchDescription(
-        # PPS Light switch
-        key="light_switch",
-        translation_key="light_switch",
-        json_key="light_switch",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        device_class=SwitchDeviceClass.SWITCH,
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.light_switch,
-    ),
-    AnkerSolixSwitchDescription(
-        # Customizable device option for MQTT value overlay
-        key=MQTT_OVERLAY,
-        translation_key=MQTT_OVERLAY,
-        json_key=MQTT_OVERLAY,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        attrib_fn=lambda d, _: (
-            {"customized": c}
-            if (c := (d.get("customized") or {}).get(MQTT_OVERLAY)) is not None
-            else {}
-        ),
-        exclude_fn=lambda s, d: not (({d.get("type")} - s) and d.get("mqtt_data")),
-        restore=True,
-        mqtt=True,
-    ),
-    AnkerSolixSwitchDescription(
-        key="ac_socket_switch",
-        translation_key="ac_socket_switch",
-        json_key="ac_socket_switch",
-        device_class=SwitchDeviceClass.OUTLET,
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.sb_ac_socket_switch,
-    ),
-    AnkerSolixSwitchDescription(
-        key="ac_output_power_switch",
-        translation_key="ac_output_power_switch",
-        json_key="ac_output_power_switch",
-        device_class=SwitchDeviceClass.OUTLET,
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.ac_output_switch,
-    ),
-    AnkerSolixSwitchDescription(
-        key="dc_output_power_switch",
-        translation_key="dc_output_power_switch",
-        json_key="dc_output_power_switch",
-        device_class=SwitchDeviceClass.OUTLET,
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.dc_output_switch,
-    ),
-    AnkerSolixSwitchDescription(
-        key="ac_charge_switch",
-        translation_key="ac_charge_switch",
-        json_key="ac_charge_switch",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        device_class=SwitchDeviceClass.SWITCH,
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.ac_charge_switch,
-    ),
-    AnkerSolixSwitchDescription(
-        key="ac_fast_charge_switch",
-        translation_key="ac_fast_charge_switch",
-        json_key="ac_fast_charge_switch",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-        device_class=SwitchDeviceClass.SWITCH,
-        mqtt=True,
-        mqtt_cmd=SolixMqttCommands.ac_fast_charge_switch,
-    ),
-    AnkerSolixSwitchDescription(
         key="display_switch",
         translation_key="display_switch",
         json_key="display_switch",
@@ -343,15 +203,7 @@ ACCOUNT_SWITCHES = [
     ),
 ]
 
-VEHICLE_SWITCHES = [
-    AnkerSolixSwitchDescription(
-        key="default_vehicle",
-        translation_key="default_vehicle",
-        json_key="is_default_vehicle",
-        exclude_fn=lambda s, d: not ({d.get("type")} - s),
-    ),
-]
-
+VEHICLE_SWITCHES: list[AnkerSolixSwitchDescription] = []
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -436,32 +288,6 @@ async def async_setup_entry(
 
     # create the sensors from the list
     async_add_entities(entities)
-
-    # register the entity services
-    platform = entity_platform.async_get_current_platform()
-    platform.async_register_entity_service(
-        name=SERVICE_EXPORT_SYSTEMS,
-        schema=SOLIX_EXPORT_SCHEMA,
-        func=SERVICE_EXPORT_SYSTEMS,
-        required_features=[AnkerSolixEntityFeature.ACCOUNT_INFO],
-        supports_response=SupportsResponse.ONLY,
-    )
-    platform.async_register_entity_service(
-        name=SERVICE_API_REQUEST,
-        schema=SOLIX_REQUEST_SCHEMA,
-        func=SERVICE_API_REQUEST,
-        description_placeholders={
-            "url": REQUEST_LINK,
-        },
-        required_features=[AnkerSolixEntityFeature.ACCOUNT_INFO],
-        supports_response=SupportsResponse.ONLY,
-    )
-    platform.async_register_entity_service(
-        name=SERVICE_MODIFY_SOLIX_BACKUP_CHARGE,
-        schema=SOLIX_BACKUP_CHARGE_SCHEMA,
-        func=SERVICE_MODIFY_SOLIX_BACKUP_CHARGE,
-        required_features=[AnkerSolixEntityFeature.AC_CHARGE],
-    )
 
 
 class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
