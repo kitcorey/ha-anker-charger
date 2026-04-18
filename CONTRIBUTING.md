@@ -48,11 +48,13 @@ Install once:
 ```bash
 uv sync --group dev
 uv run pre-commit install
+uv run pre-commit install --hook-type pre-push
 ```
 
 The pre-commit hook runs ruff (with autofix) plus the standard yaml/toml/json
-and whitespace checks on every commit. Configuration lives in
-`.pre-commit-config.yaml` and `.ruff.toml`.
+and whitespace checks on every commit. The pre-push hook additionally runs the
+full pytest suite before `git push`, blocking the push on a red test. Both
+configurations live in `.pre-commit-config.yaml` and `.ruff.toml`.
 
 To run the full check without staging anything:
 
