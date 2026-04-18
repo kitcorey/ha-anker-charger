@@ -1,0 +1,72 @@
+[project]
+name = "ha-anker-charger"
+version = "1.0.0"
+description = "Home Assistant custom integration for the Anker Prime 8-in-1 240W Charging Station (A91B2)."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Kit Corey", email = "kit@example.com" }]
+requires-python = ">=3.14.2"
+dependencies = [
+    "aiohttp>=3.10.11",
+    "aiofiles>=23.2.0",
+    "cryptography>=3.4.8",
+    "paho-mqtt>=2.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "homeassistant==2026.4.3",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "pytest-homeassistant-custom-component>=0.13",
+    "aresponses>=3.0",
+    "ruff==0.15.8",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = [
+    "--cov=custom_components/anker_charger",
+    "--cov-report=term-missing",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["custom_components/anker_charger"]
+omit = [
+    # Dead but inherited-from-upstream paths kept for compile safety; not
+    # exercised by any code path reachable from A91B2 setup.
+    "custom_components/anker_charger/entity.py",
+    # Scripts scaffolding lives outside the package.
+    "scripts/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "\\.\\.\\.",
+]
+
+[tool.uv]
+# Keep this locked so local and CI envs agree.
+default-groups = ["dev"]
+
+[tool.ruff]
+# Inherit from .ruff.toml for core rules; this block adds per-path overrides
+# that are specific to the tests/ tree.
+extend = ".ruff.toml"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "D100",  # missing module docstring
+    "D101",  # missing class docstring
+    "D102",  # missing method docstring
+    "D103",  # missing function docstring
+    "D107",  # missing __init__ docstring
+]
