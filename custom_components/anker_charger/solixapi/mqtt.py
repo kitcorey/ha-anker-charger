@@ -32,7 +32,6 @@ from .mqtttypes import (
     DeviceHexData,
     DeviceHexDataField,
     DeviceHexDataHeader,
-    DeviceJsonData,
     MqttDataStats,
 )
 from .session import AnkerSolixClientSession
@@ -137,13 +136,10 @@ class AnkerSolixMqttSession:
         if not (device_sn := payload.get("sn") if isinstance(payload, dict) else None):
             # extract sn from received topic
             device_sn = (str(msg.topic).split("/")[3:4] or [None])[0]
-        # hex data from devices use data fields, json strings from X1 use trans fields
-        data = (
-            (payload.get("data") or payload.get("trans"))
-            if isinstance(payload, dict)
-            else payload
-        )
-        # Decrypt base64-encoded encrypted data field from expected dictionary in message payload
+        # A91B2 chargers send hex data in the `data` field only; the X1 HES
+        # `trans` JSON variant is not relevant to this fork.
+        data = payload.get("data") if isinstance(payload, dict) else payload
+        # Decrypt base64-encoded data field from expected dictionary in message payload
         data = b64decode(data) if isinstance(data, str) else data
         self._logger.debug(
             "Api %s MQTT session client received message dated %s: %s on topic: %s",
@@ -155,15 +151,11 @@ class AnkerSolixMqttSession:
         extracted_values = {}
         # Update data stats
         if isinstance(data, bytes):
-            hd = None
-            if "data" in payload:
-                # structure hex data and extract values
-                hd = DeviceHexData(model=model, hexbytes=data)
-            elif "trans" in payload:
-                # structure json data and extract values
-                hd = DeviceJsonData(model=model, hexbytes=data)
-                # use dict as data to distinguish format for subsequent callbacks
-                data = hd.data
+            hd = (
+                DeviceHexData(model=model, hexbytes=data)
+                if "data" in payload
+                else None
+            )
             # extract values and update stats
             self.mqtt_stats.add_data(device_data=hd or data, model=model)
             if not hd:

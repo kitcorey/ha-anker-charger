@@ -544,14 +544,6 @@ class DeviceHexDataField:
                                 fieldmap=bytemap,
                             )
                         )
-            case DeviceHexDataTypes.json.value:
-                # Use Json Data class for extraction
-                values.update(
-                    DeviceJsonData().extract_values(
-                        data=self.json,
-                        fieldmap=fieldmap.get(DeviceHexDataTypes.json.name, {}),
-                    )
-                )
             case _:
                 # check if type provided in mapping and convert value accordingly
                 if (
@@ -865,13 +857,6 @@ class DeviceHexData:
                             f"{('' if divider is None else ' (' + VALUE_DIVIDER + ' ' + str(divider) + ')')}"
                             f"{('' if signed is None else ' (' + SIGNED + ' ' + str(signed) + ')')}{Color.OFF}"
                         )
-                    elif f.json:
-                        s += DeviceJsonData(
-                            model=self.model,
-                            msgtype=self.msg_header.msgtype,
-                            fieldname=f.f_name,
-                            data=f.json,
-                        ).decode_fields()
                 s += f"\n{80 * '-'}"
         else:
             s = ""
@@ -960,283 +945,6 @@ class DeviceHexData:
         self._update_hexbytes()
         return df
 
-
-@dataclass(order=True, kw_only=True)
-class DeviceJsonData:
-    """Dataclass to structure Solix device json data as received from MQTT transmissions.
-
-    Messages structure:
-    Json string
-    """
-
-    hexbytes: bytearray = field(default_factory=bytearray)
-    model: str = ""
-    msgtype: str | bytearray | bytes = DeviceHexDataTypes.json.name
-    fieldname: str | bytearray | bytes = ""
-    length: int = 0
-    data: dict = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        """Post init the dataclass to decode the bytes into dict."""
-        if isinstance(self.msgtype, bytes | bytearray):
-            self.msgtype = self.msgtype.hex()
-        elif not isinstance(self.msgtype, str):
-            self.msgtype = ""
-        if isinstance(self.fieldname, bytes | bytearray):
-            self.fieldname = self.fieldname.hex()
-        elif not isinstance(self.fieldname, str):
-            self.fieldname = ""
-        if isinstance(self.hexbytes, str):
-            self.hexbytes = bytearray(bytes.fromhex(self.hexbytes.replace(":", "")))
-        elif isinstance(self.hexbytes, bytes):
-            self.hexbytes = bytearray(self.hexbytes)
-        if self.hexbytes:
-            self.length = len(self.hexbytes)
-            with contextlib.suppress(UnicodeDecodeError):
-                self.data = json.loads(self.hexbytes.decode())
-        else:
-            # update length and hexbytes if not initialized via hexbytes
-            self._update_hexbytes()
-
-    def __len__(self) -> int:
-        """Return Byte count of hex data."""
-        return self.length
-
-    def __str__(self) -> str:
-        """Print the fields and hex bytes with separator."""
-        return f"model:{self.model}, data:{{{self.data!s}}}, hexbytes:{self.hexbytes.hex()}"
-
-    def _get_fieldmap(self) -> dict:
-        fmap = SOLIXMQTTMAP.get(self.model, {}).get(self.msgtype, {}).copy()
-        if self.fieldname:
-            return fmap.get(self.fieldname, {})
-        return fmap.copy()
-
-    def _update_hexbytes(self) -> None:
-        # init hexbytes
-        self.hexbytes = bytearray()
-        if not isinstance(self.data, dict):
-            self.data = {}
-        if self.data:
-            self.hexbytes = bytearray(
-                json.dumps(self.data, separators=(",", ":")), "utf-8"
-            )
-        self.length = len(self.hexbytes)
-
-    def hex(self, sep: str = "") -> str:
-        """Print the hex bytes with optional separator."""
-        if sep:
-            return self.hexbytes.hex(sep=sep)
-        return self.hexbytes.hex()
-
-    def update(
-        self,
-        name: str | dict,
-        value: float | str | dict | list | bool | None = None,
-        desc: dict | None = None,
-        remove: bool = False,
-    ) -> Self:
-        """Return the updated class instance, exception is raised if value encoding was not successfull."""
-        d_data = None
-        if isinstance(name, dict):
-            # get nested name and data for update
-            if d_name := next(iter(name.keys()), default=""):
-                d_data = self.data.get(d_name) or {}
-                name = str(name.get(d_name) or "")
-            else:
-                raise TypeError(f"Missing json field name in '{name}'")
-        elif not isinstance(name, str):
-            name = None
-        if not name:
-            raise TypeError("Error updating DeviceJsonData: Missing field identifier")
-        try:
-            if isinstance(value, float | int | str):
-                value = self.encode_value(value=value, desc=desc)
-            # Update hex bytes and length
-            if isinstance(d_data, dict):
-                if remove:
-                    d_data.pop(name, None)
-                else:
-                    d_data[name] = value
-                if d_data or d_name in self.data:
-                    self.data[d_name] = d_data
-            elif remove:
-                self.data.pop(name, None)
-            else:
-                self.data[name] = value
-            self._update_hexbytes()
-        except (ValueError, TypeError) as err:
-            raise type(err)(f"Error updating json field {name}: {err!s}") from err
-        else:
-            return self
-
-    def encode_value(
-        self,
-        value: float | str,
-        desc: dict | None = None,
-    ) -> Any | None:
-        """Return the encoded value according to existing or provided value and field description."""
-        if not isinstance(desc, dict):
-            desc = {}
-        options = desc.get(VALUE_OPTIONS, {})
-        is_str = isinstance(value, str)
-        if isinstance(value, str | int | float):
-            # for provided default or state values without value validation descriptions, use value as is
-            if not (options or VALUE_MIN in desc or VALUE_MAX in desc):
-                options = (
-                    [value]
-                    if VALUE_STATE in desc
-                    else [desc.get(VALUE_DEFAULT)]
-                    if VALUE_DEFAULT in desc
-                    else options
-                )
-            # convert string value into float or int
-            if (
-                isinstance(value, str)
-                and value.replace("-", "", 1).replace(".", "", 1).isdigit()
-            ):
-                value = float(value) if "." in value else round(float(value))
-            fieldvalue = round_by_factor(value / (desc.get(VALUE_DIVIDER) or 1), value)
-            # get a validated value for encoding, will raise value or Type Error for invalid value or definitions
-            fieldvalue = (
-                MqttCmdValidator(
-                    min=desc.get(VALUE_MIN),
-                    max=desc.get(VALUE_MAX),
-                    step=desc.get(VALUE_STEP),
-                    options=options,
-                ).check(value)
-                if value != desc.get(VALUE_DEFAULT)
-                else value
-            )
-        # use default value if defined in fieldmap
-        elif (fieldvalue := desc.get(VALUE_DEFAULT)) is None:
-            raise ValueError(
-                f"Expected (default) base type value for encoding, parameter '{desc.get(NAME, '')}' value was {type(value)}: {value!s}, with value options: {options!s}"
-            )
-        return str(fieldvalue) if is_str else fieldvalue
-
-    def decode(self) -> str:
-        """Return a header and data representation in human readable format."""
-        if self.length > 0:
-            if isinstance(m_type := self.data.get("type"), str) and "data" in self.data:
-                # data field descriptions under type_data map
-                msgtype = f"{self.msgtype}_{m_type}_data"
-            else:
-                # root field descriptions under class message type map "json"
-                msgtype = self.msgtype
-            pn = (
-                f" {str(getattr(SolixDeviceCategory, self.model, 'Unknown Device')).capitalize()} "
-                f"/ {Color.CYAN + self.model + Color.OFF} / {Color.GREEN + msgtype + Color.OFF} "
-                if self.model
-                else ""
-            )
-            return "\n".join([f"{pn:-^98}", self.decode_fields()])
-        return ""
-
-    def decode_fields(self) -> str:
-        """Return only the data representation in human readable format."""
-        # add descriptions to decoded fields
-        lines = json.dumps(self.data, indent=2, default=str).splitlines()
-        nested_fields = []
-        list_fields = 0
-        isnested = False
-        if fieldmap := self._get_fieldmap():
-            # extract nested json field from mapping for decoding
-            fieldmap = fieldmap.copy().pop("json", fieldmap)
-            if "data" in self.data:
-                # extend fieldmap with field descriptions under type_data map
-                if isinstance(m_type := self.data.get("type"), str):
-                    fieldmap |= fieldmap.copy().pop(f"{m_type}_data", {})
-                else:
-                    fieldmap |= fieldmap.copy().pop("data", {})
-            # search each json key in fieldmap,
-            for i, line in enumerate(lines):
-                # check if nested dict ends
-                if len(nested_fields) > 0 and line.endswith("}"):
-                    nested_fields = nested_fields[:-1]
-                    isnested = len(nested_fields) > 1 or not (
-                        nested_fields[-1:] or [""]
-                    )[0].endswith("data")
-                elif line.endswith("]"):
-                    list_fields -= 1
-                if key := (line.split('"')[1:2] or [""])[0]:
-                    # check if nested dict starts
-                    if line.endswith("{"):
-                        nested_fields.append(key)
-                        isnested = len(nested_fields) > 1 or not (
-                            nested_fields[-1:] or [""]
-                        )[0].endswith("data")
-                    # check if list starts
-                    if (
-                        not isnested
-                        and list_fields <= 0
-                        and (fld := fieldmap.get(key, {}))
-                    ):
-                        value = self.data.get(key)
-                        name = fld.get(NAME) or ""
-                        factor = fld.get(FACTOR) or None
-                        divider = fld.get(VALUE_DIVIDER) or None
-                        if isinstance(value, float | int) and "timestamp" in str(name):
-                            name = f"{name} ({datetime.fromtimestamp(convert_timestamp(value, ms=(isinstance(value, float)))).strftime('%Y-%m-%d %H:%M:%S')})"
-                        if name:
-                            lines[i] = (
-                                f"{line}  {Color.CYAN} --> {name}{('' if factor is None else ' (' + FACTOR + ' ' + str(factor) + ')')}"
-                                f"{('' if divider is None else ' (' + VALUE_DIVIDER + ' ' + str(divider) + ')')}{Color.OFF}"
-                            )
-                if line.endswith("["):
-                    list_fields += 1
-
-        return "\n".join(lines)
-
-    def asdict(self) -> dict:
-        """Return a dictionary representation of the class fields."""
-        return asdict(self)
-
-    def values(self) -> dict:
-        """Return a dictionary with extracted values based on defined field mappings."""
-        fieldmap = self._get_fieldmap()
-        return self.extract_values(data=self.data, fieldmap=fieldmap)
-
-    def extract_values(self, data: dict, fieldmap: dict) -> dict[str, Any]:
-        """Get described json values in fieldmap from provided data."""
-        values = {}
-        if isinstance(data, dict) and isinstance(fieldmap, dict):
-            # get map
-            for key, value in [
-                (k, v) for k, v in data.items() if k in fieldmap or isinstance(v, dict)
-            ]:
-                f_map = fieldmap.get(key, {})
-                if isinstance(value, dict):
-                    # nested mapping, recall extraction
-                    # update fieldmap if key is a data key
-                    if key == "data":
-                        f_map = fieldmap.get(
-                            f"{data.get('type', '')}_data", fieldmap.get(key, {})
-                        )
-                    values.update(self.extract_values(data=value, fieldmap=f_map))
-                elif name := f_map.get(NAME):
-                    if (factor := f_map.get(FACTOR)) and isinstance(value, float | int):
-                        values[name] = round_by_factor(
-                            value * factor,
-                            factor,
-                        )
-                    elif isinstance(value, list):
-                        for idx, v in enumerate(value, 1):
-                            if isinstance(v, float | int) and factor:
-                                v = round_by_factor(
-                                    v * factor,
-                                    factor,
-                                )
-                            values[
-                                name.replace("{x}", str(idx), 1)
-                                if "{x}" in name
-                                else f"{name}_{idx}"
-                            ] = v
-                    else:
-                        values[name] = value
-        return values
-
-
 @dataclass(kw_only=True)
 class MqttDataStats:
     """Dataclass to track MQTT statistics."""
@@ -1247,7 +955,7 @@ class MqttDataStats:
     kb_hourly_received: float = 0
     start_time: datetime = field(default_factory=datetime.now)
     dev_messages: dict[str, dict[str, dict]] = field(default_factory=dict)
-    msg_data: InitVar[DeviceHexData | DeviceJsonData | bytes | dict | None] = None
+    msg_data: InitVar[DeviceHexData | bytes | dict | None] = None
 
     def __post_init__(self, msg_data) -> None:
         """Init the dataclass from optional DeviceHexData for first stats."""
@@ -1255,7 +963,7 @@ class MqttDataStats:
             self.start_time = datetime.now()
         if not isinstance(self.dev_messages, dict):
             self.dev_messages = {}
-        if isinstance(msg_data, DeviceHexData | DeviceJsonData | bytes | dict):
+        if isinstance(msg_data, DeviceHexData | bytes | dict):
             self.add_data(device_data=msg_data)
 
     def __str__(self) -> str:
@@ -1283,16 +991,13 @@ class MqttDataStats:
 
     def add_data(
         self,
-        device_data: DeviceHexData | DeviceJsonData | bytes | dict,
+        device_data: DeviceHexData | bytes | dict,
         model: str | None = None,
     ) -> None:
         """Add device data and calculate device messages."""
         msg_type = None
-        if isinstance(device_data, DeviceHexData | DeviceJsonData):
-            if isinstance(device_data, DeviceHexData):
-                msg_type = device_data.msg_header.msgtype.hex() or "unknown"
-            else:
-                msg_type = "json"
+        if isinstance(device_data, DeviceHexData):
+            msg_type = device_data.msg_header.msgtype.hex() or "unknown"
             model = device_data.model or model
             length = device_data.length
         elif isinstance(device_data, dict):
