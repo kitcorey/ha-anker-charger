@@ -7,7 +7,6 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from typing import Any
 
 from homeassistant.components.switch import (
@@ -25,13 +24,11 @@ from homeassistant.const import (
     EntityCategory,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    ALLOW_TESTMODE,
     ATTRIBUTION,
     CREATE_ALL_ENTITIES,
     DOMAIN,
@@ -199,9 +196,7 @@ async def async_setup_entry(
                 entity_list = DEVICE_SWITCHES
                 # get MQTT device combined values for creation of entities
                 if mdev := coordinator.client.get_mqtt_device(sn=context):
-                    mdata = mdev.get_combined_cache(
-                        fromFile=coordinator.client.testmode()
-                    )
+                    mdata = mdev.get_combined_cache()
 
             for description in (
                 desc
@@ -326,7 +321,6 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 # Combined MQTT device data, overlay prio depends on customized setting
                 data = mdev.get_combined_cache(
                     api_prio=not mdev.device.get(MQTT_OVERLAY),
-                    fromFile=self.coordinator.client.testmode(),
                 )
             with suppress(ValueError, TypeError):
                 self._attr_extra_state_attributes = self.entity_description.attrib_fn(
@@ -352,7 +346,6 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 # Combined MQTT device data, overlay prio depends on customized setting
                 data = mdev.get_combined_cache(
                     api_prio=not mdev.device.get(MQTT_OVERLAY),
-                    fromFile=self.coordinator.client.testmode(),
                 )
             key = self.entity_description.json_key
             self._attr_is_on = self.entity_description.value_fn(data, key)
@@ -386,29 +379,6 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 option=enable ^ self.entity_description.inverted,
             )
             return
-        # When running in Test mode do not switch for entities not supporting test mode
-        if (
-            self.coordinator.client.testmode()
-            and self._attribute_name
-            not in [
-                "preset_allow_export",
-                "preset_discharge_priority",
-                "preset_backup_option",
-                "default_vehicle",
-                "allow_grid_export",
-                MQTT_OVERLAY,
-            ]
-            and not self.entity_description.mqtt_cmd
-        ):
-            # Raise alert to frontend
-            raise ServiceValidationError(
-                f"'{self.entity_id}' cannot be used while configuration is running in testmode",
-                translation_domain=DOMAIN,
-                translation_key="active_testmode",
-                translation_placeholders={
-                    "entity_id": self.entity_id,
-                },
-            )
         # Wait until client cache is valid before applying any api change
         await self.coordinator.client.validate_cache()
         mdev = self.coordinator.client.get_mqtt_device(self.coordinator_context)
@@ -425,27 +395,13 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 key=self.entity_description.json_key,
                 value=value,
             )
-            if ALLOW_TESTMODE:
-                LOGGER.info(
-                    "%s: State value of entity '%s' has been customized in Api cache to: %s",
-                    "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
-                    self.entity_id,
-                    value,
-                )
             await self.coordinator.async_refresh_data_from_apidict()
         elif self._attribute_name == "auto_upgrade":
-            resp = await self.coordinator.client.api.set_auto_upgrade(
+            await self.coordinator.client.api.set_auto_upgrade(
                 devices={
                     self.coordinator_context: enable ^ self.entity_description.inverted
                 }
             )
-            if isinstance(resp, dict) and ALLOW_TESTMODE:
-                LOGGER.info(
-                    "Applied upgrade settings for '%s' change to '%s':\n%s",
-                    self.entity_id,
-                    "ON" if enable else "OFF",
-                    json.dumps(resp, indent=2 if len(json.dumps(resp)) < 200 else None),
-                )
             await self.coordinator.async_refresh_data_from_apidict()
         # Trigger MQTT commands depending on changed entity
         elif self.entity_description.mqtt_cmd and mdev:
@@ -478,22 +434,8 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 parm=parm,
                 value=1 if cmdvalue else 0,
                 parm_map=parm_map,
-                toFile=self.coordinator.client.testmode(),
             )
             if isinstance(resp, dict):
-                if ALLOW_TESTMODE:
-                    LOGGER.info(
-                        "%s: Applied MQTT command '%s' for '%s' toggle to '%s':\n%s",
-                        "TESTMODE"
-                        if self.coordinator.client.testmode()
-                        else "LIVEMODE",
-                        cmd,
-                        self.entity_id,
-                        "ON" if enable else "OFF",
-                        json.dumps(
-                            resp, indent=2 if len(json.dumps(resp)) < 200 else None
-                        ),
-                    )
                 # copy the changed state(s) of the mock response into device cache to avoid flip back of entity until real state is received
                 for key, val in resp.items():
                     if key in mdev.mqttdata:
@@ -502,7 +444,7 @@ class AnkerSolixSwitch(CoordinatorEntity, SwitchEntity):
                 # avoiding a stale 0a00 response that overwrites the mock state
                 await asyncio.sleep(2)
                 # trigger status request to get updated MQTT message
-                await mdev.status_request(toFile=self.coordinator.client.testmode())
+                await mdev.status_request()
             else:
                 LOGGER.error(
                     "'%s' could not be toggled via MQTT command '%s'",
