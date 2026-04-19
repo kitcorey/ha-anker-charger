@@ -1,7 +1,7 @@
 services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:${HA_VERSION:-stable}
-    container_name: ha-anker-solix-dev
+    container_name: ha-anker-charger-dev
     restart: unless-stopped
     volumes:
       - ./config:/config

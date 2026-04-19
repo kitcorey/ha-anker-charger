@@ -7,10 +7,10 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/kitcorey/ha-anker-solix",
+  "documentation": "https://github.com/kitcorey/ha-anker-charger",
   "integration_type": "hub",
   "iot_class": "cloud_push",
-  "issue_tracker": "https://github.com/kitcorey/ha-anker-solix/issues",
+  "issue_tracker": "https://github.com/kitcorey/ha-anker-charger/issues",
   "requirements": [
     "aiohttp>=3.10.11",
     "aiofiles>=23.2.0",

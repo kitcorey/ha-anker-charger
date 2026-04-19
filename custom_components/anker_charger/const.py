@@ -15,10 +15,10 @@ ACCEPT_TERMS: Final[str] = "accept_terms"
 TERMS_LINK: Final[str] = "terms_link"
 MQTT_LINK: Final[str] = "mqtt_link"
 TC_LINK: Final[str] = (
-    "https://github.com/kitcorey/ha-anker-solix/blob/main/README.md"
+    "https://github.com/kitcorey/ha-anker-charger/blob/main/README.md"
 )
 MQ_LINK: Final[str] = (
-    "https://github.com/kitcorey/ha-anker-solix#mqtt"
+    "https://github.com/kitcorey/ha-anker-charger#mqtt"
 )
 
 PLATFORMS: list[Platform] = [

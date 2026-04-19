@@ -41,7 +41,7 @@ Plus a cloud account device exposing:
 
 ### HACS (recommended)
 
-1. Add `https://github.com/kitcorey/ha-anker-solix` as a custom repository in
+1. Add `https://github.com/kitcorey/ha-anker-charger` as a custom repository in
    HACS, category **Integration**.
 2. Search HACS for "Anker Charger (A91B2)" and install.
 3. Restart Home Assistant.
