@@ -108,10 +108,10 @@ class TestBaseUpdateAccount:
         assert acc["country"] == "US"
 
     def test_extra_details_merge(self, base_api: AnkerSolixBaseApi):
-        base_api._update_account({"custom_key": "abc", "use_files": True})
+        base_api._update_account({"custom_key": "abc", "extra_flag": True})
         acc = base_api.account
         assert acc["custom_key"] == "abc"
-        assert acc["use_files"] is True
+        assert acc["extra_flag"] is True
 
     def test_request_counts_populated(self, base_api: AnkerSolixBaseApi):
         base_api._update_account({})

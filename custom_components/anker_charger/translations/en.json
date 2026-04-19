@@ -158,7 +158,6 @@
             "exceeded": "Login attempts exceeded: {error_detail}",
             "duplicate_devices": "{username} has shared devices with existing account {shared_account} configured in hub {name}, you cannot configure both hubs at the same time!",
             "accept_terms": "Usage terms and conditions must be accepted",
-            "folder_invalid": "Valid folder required for testmode",
             "unknown": "Unknown error occurred: {error_detail}"
         },
         "abort": {
@@ -400,13 +399,6 @@
                             "off": "No"
                         }
                     }
-                }
-            },
-            "use_files": {
-                "name": "Use Files",
-                "state": {
-                    "on": "Yes",
-                    "off": "No"
                 }
             },
             "smart_charging": {
@@ -2373,9 +2365,6 @@
         },
         "out_of_range": {
             "message": "{entity_id} cannot be set to {value} because it is outside of allowed range {min}-{max}"
-        },
-        "active_testmode": {
-            "message": "{entity_id} cannot be used while configuration is running in testmode"
         },
         "apiusage_deactivated": {
             "message": "{entity_id} cannot be used for requested action {action_name} while Api usage is deactivated"

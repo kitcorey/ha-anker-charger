@@ -40,7 +40,5 @@ MQTT_OVERLAY: Final[str] = "mqtt_overlay"
 # Feature toggles kept as False in this fork. Referenced by a few entity-code
 # paths inherited from upstream; retained here so those paths compile without
 # unused-import errors.
-ALLOW_TESTMODE: Final[bool] = False
 CREATE_ALL_ENTITIES: Final[bool] = False
-TEST_NUMBERVARIANCE: Final[bool] = False
 CONF_SKIP_INVALID: Final[str] = "skip_invalid"

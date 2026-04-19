@@ -4,8 +4,7 @@
             "user_options": {
                 "sections": {
                     "api_options": "mdi:api",
-                    "mqtt_options": "mdi:source-branch-sync",
-                    "test_options": "mdi:hammer-wrench"
+                    "mqtt_options": "mdi:source-branch-sync"
                 }
             }
         }
@@ -15,8 +14,7 @@
             "init": {
                 "sections": {
                     "api_options": "mdi:api",
-                    "mqtt_options": "mdi:source-branch-sync",
-                    "test_options": "mdi:hammer-wrench"
+                    "mqtt_options": "mdi:source-branch-sync"
                 }
             }
         }
@@ -101,13 +99,6 @@
                 "state": {
                     "on": "mdi:message-alert",
                     "off": "mdi:message-check-outline"
-                }
-            },
-            "use_files": {
-                "default": "mdi:account-alert",
-                "state": {
-                    "on": "mdi:file-document-refresh-outline",
-                    "off": "mdi:web-sync"
                 }
             },
             "smart_charging": {

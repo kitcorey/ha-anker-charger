@@ -148,7 +148,6 @@ def mock_api_client(coordinator_data, mqtt_snapshot) -> MagicMock:
     client = MagicMock()
     client.authenticate = AsyncMock(return_value=True)
     client.async_get_data = AsyncMock(return_value=coordinator_data)
-    client.testmode = MagicMock(return_value=False)
     client.allow_refresh = MagicMock(return_value=True)
     client.mqtt_usage = AsyncMock(return_value=True)
     client.trigger_timeout = MagicMock(return_value=300)

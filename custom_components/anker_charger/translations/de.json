@@ -165,19 +165,6 @@
                             "mqtt_usage": "Hinweis: Die Verwendung von MQTT kann zusätzliche Funktionen und Steuerungsmöglichkeiten für deine verwalteten Geräte aktivieren. Dies hängt stark von der bekannten MQTT Nachrichtenentschlüsselung des Gerätetyps ab.\nWeitere Informationen: {mqtt_link}",
                             "trigger_timeout": "Geräte veröffentlichen Echtzeitdaten nur nachdem sie getriggert wurden. Die Zeitüberschreitung ist die Veröffentlichungsdauer, falls sie nicht erneut getriggert werden."
                         }
-                    },
-                    "test_options": {
-                        "name": "Test Optionen",
-                        "description": "Ändere Optionen zum Testen der Integration",
-                        "data": {
-                            "testmode": "Benutze den Testmode für die Integration",
-                            "testfolder": "Ordner mit json Dateien für den Integrationstest",
-                            "mqtt_test_speed": "Geschwindigkeitsfaktor für MQTT Nachrichtensimulation"
-                        },
-                        "data_description": {
-                            "testmode": "Im Testmode benutzt die Konfiguration lediglich die json Dateien im ausgewählen Ordner zum Erstellen der Geräte und Sensoren für Testzwecke. Eine Server Kommunikation findet dann nicht mehr statt.",
-                            "mqtt_test_speed": "Falls der Ordner eine Abfolge an MQTT Dateien enthält, werden diese mit dem gewählten Geschwindigkeitsfaktor simuliert."
-                        }
                     }
                 }
             }
@@ -188,7 +175,6 @@
             "exceeded": "Anzahl Loginversuche überschritten: {error_detail}",
             "duplicate_devices": "{username} teilt Geräte mit dem bestehenden Konto {shared_account}, das im Hub {name} konfiguriert ist. Es können nicht beide Hubs gleichzeitig konfiguriert werden!",
             "accept_terms": "Nutzungsbedingungen müssen akzeptiert werden",
-            "folder_invalid": "Gültiger Ordner erforderlich für den Testmode",
             "unknown": "Unbekannter Fehler aufgetreten: {error_detail}"
         },
         "abort": {
@@ -236,25 +222,9 @@
                             "mqtt_usage": "Hinweis: Die Verwendung von MQTT kann zusätzliche Funktionen und Steuerungsmöglichkeiten für deine verwalteten Geräte aktivieren. Dies hängt stark von der bekannten MQTT Nachrichtenentschlüsselung des Gerätetyps ab.\nWeitere Informationen: {mqtt_link}",
                             "trigger_timeout": "Geräte veröffentlichen Echtzeitdaten nur nachdem sie getriggert wurden. Die Zeitüberschreitung ist die Veröffentlichungsdauer, falls sie nicht erneut getriggert werden."
                         }
-                    },
-                    "test_options": {
-                        "name": "Test Optionen",
-                        "description": "Ändere Optionen zum Testen der Integration",
-                        "data": {
-                            "testmode": "Benutze den Testmode für die Integration",
-                            "testfolder": "Ordner mit json Dateien für den Integrationstest",
-                            "mqtt_test_speed": "Geschwindigkeitsfaktor für MQTT Nachrichtensimulation"
-                        },
-                        "data_description": {
-                            "testmode": "Im Testmode benutzt die Konfiguration lediglich die json Dateien im ausgewählen Ordner zum Erstellen der Geräte und Sensoren für Testzwecke. Eine Server Kommunikation findet dann nicht mehr statt.",
-                            "mqtt_test_speed": "Falls der Ordner eine Abfolge an MQTT Dateien enthält, werden diese mit dem gewählten Geschwindigkeitsfaktor simuliert."
-                        }
                     }
                 }
             }
-        },
-        "error": {
-            "folder_invalid": "Gültiger Ordner erforderlich für den Testmode"
         }
     },
     "issues": {
@@ -463,13 +433,6 @@
                             "off": "Nein"
                         }
                     }
-                }
-            },
-            "use_files": {
-                "name": "Benutze Dateien",
-                "state": {
-                    "on": "Ja",
-                    "off": "Nein"
                 }
             },
             "smart_charging": {
@@ -2430,9 +2393,6 @@
         },
         "out_of_range": {
             "message": "{entity_id} kann nicht auf {value} geändert werden weil es ausserhalb des erlaubten Bereiches von {min}-{max} liegt"
-        },
-        "active_testmode": {
-            "message": "{entity_id} kann nicht benutzt werden solange die Konfiguration im Testmodus ist"
         },
         "apiusage_deactivated": {
             "message": "{entity_id} kann nicht für die angeforderte Aktion {action_name} benutzt werden solange die Api Nutzung ausgeschaltet ist"

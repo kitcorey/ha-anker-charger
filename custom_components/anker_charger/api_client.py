@@ -1,11 +1,10 @@
 """API client wrapper for the Anker A91B2 charger integration.
 
 This fork only talks to A91B2 charging stations. Compared to upstream we no
-longer need per-site polling, per-category exclusion lists, testmode
-file-poller machinery, or the vehicle/export/backup-charge services — the
-happy path is: login once, call get_bind_devices to populate the charger
-cache, start the MQTT session for realtime data, keep MQTT alive on every
-poll, done.
+longer need per-site polling, per-category exclusion lists, or the
+vehicle/export/backup-charge services — the happy path is: login once, call
+get_bind_devices to populate the charger cache, start the MQTT session for
+realtime data, keep MQTT alive on every poll, done.
 """
 
 from __future__ import annotations
@@ -120,15 +119,6 @@ class AnkerSolixApiClient:
         """Return the scan interval from entry.options, or the default."""
         options = getattr(entry, "options", None) or entry
         return int(options.get(CONF_SCAN_INTERVAL, DEFAULT_UPDATE_INTERVAL))
-
-    # ------------------------------------------------------------------
-    # Test-mode stub (kept so downstream `coordinator.client.testmode()`
-    # calls continue to return False). The fork no longer supports running
-    # from a folder of JSON examples.
-    # ------------------------------------------------------------------
-    def testmode(self, mode: bool | None = None) -> bool:
-        """No-op stub; this fork does not support test mode."""
-        return False
 
     # ------------------------------------------------------------------
     # Authentication + raw request passthrough
