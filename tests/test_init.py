@@ -31,6 +31,27 @@ async def test_setup_entry_forwards_platforms(hass, setup_entry):
     assert "AFCJTB0F08102349" in devices
 
 
+async def test_setup_entry_preregisters_account_device(hass, setup_entry):
+    """Account device must exist before charger entities reference it via via_device.
+
+    Without pre-registration, sensor platform setup (which runs before switch)
+    adds charger entities whose via_device points at a not-yet-registered account
+    device, triggering HA's "referencing a non existing via_device" warning.
+    """
+    from homeassistant.helpers import device_registry as dr
+
+    from tests.conftest import ACCOUNT_EMAIL, CHARGER_SN_SUNROOM
+
+    reg = dr.async_get(hass)
+    account_dev = reg.async_get_device(identifiers={(DOMAIN, ACCOUNT_EMAIL)})
+    assert account_dev is not None, "account device should be pre-registered at setup"
+    assert setup_entry.entry_id in account_dev.config_entries
+
+    charger_dev = reg.async_get_device(identifiers={(DOMAIN, CHARGER_SN_SUNROOM)})
+    assert charger_dev is not None
+    assert charger_dev.via_device_id == account_dev.id
+
+
 async def test_unload_entry_removes_coordinator(hass, setup_entry):
     """Unloading the entry should free ``hass.data[DOMAIN]`` entry."""
     assert await hass.config_entries.async_unload(setup_entry.entry_id)

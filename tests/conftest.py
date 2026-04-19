@@ -171,6 +171,7 @@ def mock_api_client(coordinator_data, mqtt_snapshot) -> MagicMock:
     # Attach a minimal ``api`` sub-mock used by coordinator + platforms.
     api = MagicMock()
     api.apisession = MagicMock()
+    api.apisession.email = ACCOUNT_EMAIL
     api.apisession.nickname = "tester"
     api.apisession.request_count = MagicMock(
         last_minute=MagicMock(return_value=2),

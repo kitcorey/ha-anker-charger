@@ -10,7 +10,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_SCAN_INTERVAL, CONF_USERNAME, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError
-from homeassistant.helpers import issue_registry as ir, restore_state
+from homeassistant.helpers import (
+    device_registry as dr,
+    issue_registry as ir,
+    restore_state,
+)
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.device_registry import DeviceEntry
 
@@ -26,6 +30,7 @@ from .const import (
     SHARED_ACCOUNT,
 )
 from .coordinator import AnkerSolixDataUpdateCoordinator
+from .entity import get_AnkerSolixAccountInfo
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -99,6 +104,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     active = hass.data.get(DOMAIN) or []
     if len(active) >= len(entries):
         ir.async_delete_issue(hass, DOMAIN, "duplicate_devices")
+
+    # Pre-register the account device so charger entities' via_device references
+    # resolve during sensor platform setup (which runs before the switch platform
+    # that would otherwise create this device implicitly).
+    if username and (account_data := (coordinator.data or {}).get(username)):
+        dr.async_get(hass).async_get_or_create(
+            config_entry_id=entry.entry_id,
+            **get_AnkerSolixAccountInfo(account_data, username),
+        )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
