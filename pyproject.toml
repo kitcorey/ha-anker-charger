@@ -1,6 +1,6 @@
 [project]
 name = "ha-anker-charger"
-version = "0.1.0"
+version = "0.1.1"
 description = "Home Assistant custom integration for the Anker Prime 8-in-1 240W Charging Station (A91B2)."
 readme = "README.md"
 license = { file = "LICENSE" }
