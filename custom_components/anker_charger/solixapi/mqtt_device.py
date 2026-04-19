@@ -61,12 +61,10 @@ class SolixMqttDevice:
         self.pn: str = self.pn or ""
         self.models = self.models or MODELS
         self.features = self.features or FEATURES
-        self.testdir: str = self.api.testDir()
         self.device: dict = {}
         self.mqttdata: dict = {}
         self.controls: dict = {}
         self._map: dict = {}
-        self._filedata: dict = {}
         self.dynamic_descriptions: dict = {}
         self._logger = api_instance.logger()
         # initialize device data
@@ -342,7 +340,6 @@ class SolixMqttDevice:
         self,
         cmd: str,
         parm: str | None = None,
-        fromFile: bool = False,
     ) -> dict:
         """Get dictionary with command parameter state name and value converted into option string."""
         if isinstance(cmd, str):
@@ -355,7 +352,7 @@ class SolixMqttDevice:
                 (options := desc.get(VALUE_OPTIONS, {}))
                 and isinstance(options, dict)
                 and (state_name := desc.get(STATE_NAME))
-                and (value := self.get_status(fromFile).get(state_name)) is not None
+                and (value := self.get_status().get(state_name)) is not None
             ):
                 # convert state to command option value
                 if callable(converter := desc.get(STATE_CONVERTER)):
@@ -444,7 +441,7 @@ class SolixMqttDevice:
         # lookup state if value is string
         elif (
             isinstance(value, str)
-            and str(val := self.get_status(fromFile=True).get(value))
+            and str(val := self.get_status().get(value))
             .replace("-", "", 1)
             .replace(".", "", 1)
             .isdigit()
@@ -492,7 +489,6 @@ class SolixMqttDevice:
         command: str,
         parameters: dict | None = None,
         description: str = "",
-        toFile: bool = False,
     ) -> str | None:
         """Send MQTT command to device.
 
@@ -501,7 +497,6 @@ class SolixMqttDevice:
             command: Command name
             parameters: Command parameters
             description: Human-readable description for logging
-            toFile: If True, skip publish and print decoded command (for testing compatibility)
 
         Returns:
             str | None: String with hex command if sent, None otherwise
@@ -523,50 +518,40 @@ class SolixMqttDevice:
                 command,
             )
             return None
-        if toFile:
-            # print the decoded command
-            self._logger.info(
-                "TESTMODE: MQTT device %s (%s) generated command: %s\n%s",
-                self.sn,
-                self.pn,
-                description,
-                hexdata.decode(),
-            )
-        else:
-            try:
-                # Ensure MQTT session is started and connected
-                if not self.is_connected():
-                    if not await self.api.startMqttSession():
-                        self._logger.error(
-                            "Failed to start MQTT session for device control"
-                        )
-                        return None
-                # Publish MQTT command
-                _, mqtt_info = self.api.mqttsession.publish(
-                    deviceDict=self.device,
-                    hexbytes=hexdata.hex(),
-                    encoding_type=self.controls.get(command, {}).get(COMMAND_ENCODING),
-                )
-                # Wait for publish completion with timeout
-                with contextlib.suppress(ValueError, RuntimeError):
-                    mqtt_info.wait_for_publish(timeout=5)
-                if not mqtt_info.is_published():
+        try:
+            # Ensure MQTT session is started and connected
+            if not self.is_connected():
+                if not await self.api.startMqttSession():
                     self._logger.error(
-                        "MQTT device %s (%s) failed to publish command: %s",
-                        self.sn,
-                        self.pn,
-                        description,
+                        "Failed to start MQTT session for device control"
                     )
                     return None
-            except (ValueError, RuntimeError) as err:
+            # Publish MQTT command
+            _, mqtt_info = self.api.mqttsession.publish(
+                deviceDict=self.device,
+                hexbytes=hexdata.hex(),
+                encoding_type=self.controls.get(command, {}).get(COMMAND_ENCODING),
+            )
+            # Wait for publish completion with timeout
+            with contextlib.suppress(ValueError, RuntimeError):
+                mqtt_info.wait_for_publish(timeout=5)
+            if not mqtt_info.is_published():
                 self._logger.error(
-                    "MQTT device %s (%s) got error while sending command: %s\n%s",
+                    "MQTT device %s (%s) failed to publish command: %s",
                     self.sn,
                     self.pn,
                     description,
-                    err,
                 )
                 return None
+        except (ValueError, RuntimeError) as err:
+            self._logger.error(
+                "MQTT device %s (%s) got error while sending command: %s\n%s",
+                self.sn,
+                self.pn,
+                description,
+                err,
+            )
+            return None
         self._logger.info("MQTT device %s (%s) %s", self.sn, self.pn, description)
         return hexdata.hex()
 
@@ -576,7 +561,6 @@ class SolixMqttDevice:
         value: Any = None,
         parm: str | None = None,
         parm_map: dict | None = None,
-        toFile: bool = False,
     ) -> dict | None:
         """Validate and send a supported device command that requires a single parameter value at most.
 
@@ -585,7 +569,6 @@ class SolixMqttDevice:
             value: Optional value for a parameter that is supported by the command
             parm: Optional Parameter for the value if command parameter description is ambiguous
             parm_map: Optional dictionary with parameter value mapping for multiple parameter commands
-            toFile: If True, skip publish and print decoded command (for testing compatibility)
 
         Returns:
             dict: Dictionary with mock status if message was published, None otherwise
@@ -661,7 +644,7 @@ class SolixMqttDevice:
                 elif (
                     par not in parameters
                     and (
-                        state := self.get_status(fromFile=True).get(
+                        state := self.get_status().get(
                             desc.get(VALUE_STATE, ""), desc.get(VALUE_DEFAULT)
                         )
                     )
@@ -699,27 +682,20 @@ class SolixMqttDevice:
                 command=cmd,
                 parameters=parameters,
                 description=f"sent command '{cmd}'{': ' if user_parms else ''}{user_parms}",
-                toFile=toFile,
             ):
                 resp = state_fields
-                # add mock states for fields with depending values
-
-                if toFile:
-                    self._filedata.update(resp)
         return resp
 
     async def realtime_trigger(
         self,
         timeout: int = SolixDefaults.TRIGGER_TIMEOUT_DEF,
         state: bool | None = None,
-        toFile: bool = False,
     ) -> dict | None:
         """Trigger device realtime data publish.
 
         Args:
             timeout: Seconds for realtime publish to stop
             state: Set the state of the trigger, default will be on
-            toFile: If True, save mock response (for testing compatibility)
 
         Returns:
             dict: dict with mocked state response, None otherwise
@@ -737,17 +713,10 @@ class SolixMqttDevice:
             parm_map={}
             if state is None or "set_realtime_trigger" not in parms
             else {"set_realtime_trigger": "on" if state else "off"},
-            toFile=toFile,
         )
 
-    async def status_request(
-        self,
-        toFile: bool = False,
-    ) -> dict | None:
+    async def status_request(self) -> dict | None:
         """Send device status_request.
-
-        Args:
-            toFile: If True, save mock response (for testing compatibility)
 
         Returns:
             dict: dict with mocked state response, None otherwise
@@ -760,7 +729,6 @@ class SolixMqttDevice:
         if await self._send_mqtt_command(
             command=SolixMqttCommands.status_request,
             description="sent status request",
-            toFile=toFile,
         ):
             return {}
         return None
@@ -769,14 +737,12 @@ class SolixMqttDevice:
         self,
         mqtt_unique: bool = False,
         api_prio: bool = False,
-        fromFile: bool = False,
     ) -> dict:
         """Get copy of combined values from device actual Api and MQTT cache.
 
         Args:
             mqtt_unique: If True, provide only MQTT values not included in Api cache
             api_prio: If True, duplicate values will have the Api cache value, default is MQTT cache value
-            fromFile: If True, include mock MQTT cache while testing from files
 
         Returns:
             dict: Combined Api and MQTT data cache
@@ -785,7 +751,7 @@ class SolixMqttDevice:
             mqtt_unique = mydevice.get_combined_cache(mqtt_unique=True)
 
         """
-        mqttdata = self.mqttdata | (self._filedata if fromFile else {})
+        mqttdata = dict(self.mqttdata)
         if mqtt_unique:
             # find duplicate keys and remove them from MQTT cache copy
             dup = set(self.device.keys()) & (set(mqttdata.keys()))
@@ -798,14 +764,8 @@ class SolixMqttDevice:
             data = self.device | mqttdata
         return data
 
-    def get_status(
-        self,
-        fromFile: bool = False,
-    ) -> dict:
+    def get_status(self) -> dict:
         """Get actual MQTT device cache status.
-
-        Args:
-            fromFile: If True, include mock status while testing from files
 
         Returns:
             dict: Device status with all extracted MQTT message fields from
@@ -817,17 +777,10 @@ class SolixMqttDevice:
             print(f"Battery SOC: {status.get('battery_soc')}%")
 
         """
-        # Return copy of accumulated MQTT data cache, handle test mode
-        return self.mqttdata | (self._filedata if fromFile else {})
+        return dict(self.mqttdata)
 
-    def print_status(
-        self,
-        fromFile: bool = False,
-    ) -> dict:
+    def print_status(self) -> dict:
         """Print and return actual MQTT device status.
-
-        Args:
-            fromFile: If True, include mock status while testing from files
 
         Returns:
             dict: Device status with all extracted MQTT message fields from
@@ -837,13 +790,11 @@ class SolixMqttDevice:
             mydevice.print_status()
 
         """
-        # Return accumulated MQTT data cache, handle test mode
-        data = self.get_status(fromFile=fromFile)
+        data = self.get_status()
         self._logger.info(
-            "MQTT device %s (%s) status%s:\n%s",
+            "MQTT device %s (%s) status:\n%s",
             self.sn,
             self.pn,
-            " with optional MQTT test control changes" if fromFile else "",
             str(data),
         )
         return data
