@@ -16,7 +16,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import aiofiles
-import aiofiles.os
 from aiohttp import ClientSession, ClientTimeout
 from aiohttp.client_exceptions import ClientError
 from cryptography.hazmat.backends import default_backend
@@ -65,9 +64,6 @@ class AnkerSolixClientSession:
         self._password: str = password
         self._session: ClientSession = websession
         self._loggedIn: bool = False
-        self._testdir: str = str(
-            (Path(__file__).parent / ".." / "examples" / "example1").resolve()
-        )
 
         # Flag for retry of any or certain error
         self._retry_attempt: bool | int = False
@@ -148,23 +144,6 @@ class AnkerSolixClientSession:
         if logger:
             self._logger = logger
         return self._logger
-
-    def testDir(self, subfolder: str | None = None) -> str:
-        """Get or set the subfolder for local API test files."""
-        if not subfolder or str(subfolder) == self._testdir:
-            return self._testdir
-        if not Path(subfolder).is_dir():
-            self._logger.error(
-                "Specified test folder for api %s does not exist: %s",
-                self.nickname,
-                subfolder,
-            )
-        else:
-            self._testdir = str(subfolder)
-            self._logger.info(
-                "Set api %s test folder to: %s", self.nickname, self._testdir
-            )
-        return self._testdir
 
     def logLevel(self, level: int | None = None) -> int:
         """Get or set the logger log level."""
@@ -773,51 +752,6 @@ class AnkerSolixClientSession:
                 "ERROR: Failed to load JSON from file %s\n%s", masked_filename, err
             )
         return {}
-
-    async def saveToFile(self, filename: str | Path, data: dict | None = None) -> bool:
-        """Save json data to given file for testing."""
-        filename = str(filename)
-        if self.mask_credentials:
-            masked_filename = filename.replace(
-                self._email, self.mask_values(self._email)
-            )
-        else:
-            masked_filename = filename
-        if not data:
-            data = {}
-        try:
-            async with aiofiles.open(filename, "w", encoding="utf-8") as file:
-                await file.write(json.dumps(data, indent=2))
-                self._logger.debug("Saved JSON to file %s:", masked_filename)
-                return True
-        except OSError as err:
-            self._logger.error(
-                "ERROR: Failed to save JSON to file %s\n%s", masked_filename, err
-            )
-            return False
-
-    async def deleteModifiedFile(self, filename: str | Path) -> bool:
-        """Delete given modified json file for testing."""
-        filename = str(filename)
-        if "modified" not in filename:
-            return False
-        if self.mask_credentials:
-            masked_filename = filename.replace(
-                self._email, self.mask_values(self._email)
-            )
-        else:
-            masked_filename = filename
-        try:
-            await aiofiles.os.remove(masked_filename)
-            self._logger.debug("Remove modified JSON file %s:", masked_filename)
-        except OSError as err:
-            self._logger.error(
-                "ERROR: Failed to remove modified JSON file %s\n%s",
-                masked_filename,
-                err,
-            )
-            return False
-        return True
 
     async def get_mqtt_info(self) -> dict:
         r"""Get the Anker MQTT server info with account certificates from session.
