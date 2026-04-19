@@ -124,38 +124,36 @@ class AnkerSolixApi(AnkerSolixBaseApi):
     async def update_sites(
         self,
         siteId: str | None = None,
-        fromFile: bool = False,
         exclude: set | None = None,
     ) -> dict:
         """A91B2 is a standalone charger; there are no sites to populate."""
         return {}
 
     async def update_site_details(
-        self, fromFile: bool = False, exclude: set | None = None
+        self, exclude: set | None = None
     ) -> dict:
         """No site details for a standalone charger."""
         return {}
 
     async def update_device_details(
-        self, fromFile: bool = False, exclude: set | None = None
+        self, exclude: set | None = None
     ) -> dict:
         """Refresh the device cache via the cloud bind_devices endpoint."""
-        self._update_account({"use_files": fromFile})
-        await self.get_bind_devices(fromFile=fromFile)
+        await self.get_bind_devices()
         return self.devices
 
     async def update_device_energy(
-        self, fromFile: bool = False, exclude: set | None = None
+        self, exclude: set | None = None
     ) -> dict:
         """No energy statistics exposed for the A91B2 charger."""
         return {}
 
-    async def get_vehicle_list(self, fromFile: bool = False) -> dict:
+    async def get_vehicle_list(self) -> dict:
         """Vehicles are not supported in this fork."""
         return {}
 
     async def get_vehicle_details(
-        self, vehicleId: str | None = None, fromFile: bool = False
+        self, vehicleId: str | None = None
     ) -> dict:
         """Vehicles are not supported in this fork."""
         return {}
@@ -164,7 +162,6 @@ class AnkerSolixApi(AnkerSolixBaseApi):
         self,
         vehicleId: str | None = None,
         action: str | None = None,
-        toFile: bool = False,
     ) -> dict | None:
         """Vehicles are not supported in this fork."""
         return None

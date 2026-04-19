@@ -5,14 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 import logging
-from pathlib import Path
 from typing import Any
 
 from aiohttp import ClientSession
 
 from .apitypes import (
     API_ENDPOINTS,
-    API_FILEPREFIXES,
     SolixDeviceType,
 )
 from .mqtt import AnkerSolixMqttSession, MessageCallback
@@ -61,10 +59,6 @@ class AnkerSolixBaseApi:
         self.sites: dict[str, dict] = {}
         self.devices: dict[str, dict] = {}
         self._device_callbacks: dict[str, dict] = {}
-
-    def testDir(self, subfolder: str | None = None) -> str:
-        """Get or set the subfolder for local API test files in the api session."""
-        return self.apisession.testDir(subfolder)
 
     def endpointLimit(self, limit: int | None = None) -> int:
         """Get or set the api request limit per endpoint per minute."""
@@ -184,14 +178,14 @@ class AnkerSolixBaseApi:
                 func(device=self.devices.get(deviceSn, {}))
 
     async def startMqttSession(
-        self, message_callback: MessageCallback | None = None, fromFile: bool = False
+        self, message_callback: MessageCallback | None = None
     ) -> AnkerSolixMqttSession | None:
-        """(Re)Start the MQTT session, and if not fromFile also (Re)connect to server."""
+        """(Re)Start the MQTT session and (re)connect to the server."""
         # Initialize the session if required
         if not self.mqttsession:
             self.mqttsession = AnkerSolixMqttSession(apisession=self.apisession)
         # (Re)Connect the MQTT client
-        if not fromFile and not self.mqttsession.is_connected():
+        if not self.mqttsession.is_connected():
             await self.mqttsession.connect_client_async()
             if not self.mqttsession.is_connected():
                 self._logger.error(
@@ -455,7 +449,7 @@ class AnkerSolixBaseApi:
         self._update_account({"mqtt_statistic": stats})
         return updated
 
-    async def get_bind_devices(self, fromFile: bool = False) -> dict:
+    async def get_bind_devices(self) -> dict:
         """Get the bind device information, which will list all devices the account has admin rights for. It also contains firmware level of devices.
 
         Example data:
@@ -463,12 +457,7 @@ class AnkerSolixBaseApi:
         "img_url":"https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/e9478c2d-e665-4d84-95d7-dd4844f82055/20230719-144818.png",
         "link_time":1695392302068,"wifi_online":false,"wifi_name":"","relate_type":["ble","wifi"],"charge":false,"bws_surplus":0,"device_sw_version":"v1.4.4","has_manual":false}]}
         """
-        if fromFile:
-            resp = await self.apisession.loadFromFile(
-                Path(self.testDir()) / f"{API_FILEPREFIXES['bind_devices']}.json"
-            )
-        else:
-            resp = await self.apisession.request("post", API_ENDPOINTS["bind_devices"])
+        resp = await self.apisession.request("post", API_ENDPOINTS["bind_devices"])
         data = resp.get("data") or {}
         active_devices = set()
         for device in data.get("data") or []:
@@ -478,21 +467,16 @@ class AnkerSolixBaseApi:
         self.recycleDevices(extraDevices=active_devices)
         return data
 
-    async def get_auto_upgrade(self, fromFile: bool = False) -> dict:
+    async def get_auto_upgrade(self) -> dict:
         """Get auto upgrade settings and devices enabled for auto upgrade.
 
         Example data:
         {'main_switch': True, 'device_list': [{'device_sn': '9JVB42LJK8J0P5RY', 'device_name': 'Solarbank E1600', 'auto_upgrade': True, 'alias_name': 'Solarbank E1600',
         'icon': 'https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/e9478c2d-e665-4d84-95d7-dd4844f82055/20230719-144818.png'}]}
         """
-        if fromFile:
-            resp = await self.apisession.loadFromFile(
-                Path(self.testDir()) / f"{API_FILEPREFIXES['get_auto_upgrade']}.json"
-            )
-        else:
-            resp = await self.apisession.request(
-                "post", API_ENDPOINTS["get_auto_upgrade"]
-            )
+        resp = await self.apisession.request(
+            "post", API_ENDPOINTS["get_auto_upgrade"]
+        )
         data = resp.get("data") or {}
         main = data.get("main_switch")
         devicelist = (
