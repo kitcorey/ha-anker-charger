@@ -7,7 +7,6 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from random import choice, randrange
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -40,7 +39,6 @@ from .const import (
     DOMAIN,
     LOGGER,
     MQTT_OVERLAY,
-    TEST_NUMBERVARIANCE,
 )
 from .coordinator import AnkerSolixDataUpdateCoordinator
 from .entity import (
@@ -418,9 +416,7 @@ async def async_setup_entry(
                 entity_list = DEVICE_SENSORS
                 # get MQTT device combined values for creation of entities
                 if mdev := coordinator.client.get_mqtt_device(sn=context):
-                    mdata = mdev.get_combined_cache(
-                        fromFile=coordinator.client.testmode()
-                    )
+                    mdata = mdev.get_combined_cache()
 
             for description in entity_list:
                 if description.nested_sensor:
@@ -687,7 +683,6 @@ class AnkerSolixSensor(CoordinatorEntity, SensorEntity):
                 # Combined MQTT device data, overlay prio depends on customized setting
                 data = mdev.get_combined_cache(
                     api_prio=not mdev.device.get(MQTT_OVERLAY),
-                    fromFile=self.coordinator.client.testmode(),
                 )
             with suppress(ValueError, TypeError):
                 self._attr_extra_state_attributes = self.entity_description.attrib_fn(
@@ -714,7 +709,6 @@ class AnkerSolixSensor(CoordinatorEntity, SensorEntity):
                 # Combined MQTT device data, overlay prio depends on customized setting
                 data = mdev.get_combined_cache(
                     api_prio=not mdev.device.get(MQTT_OVERLAY),
-                    fromFile=self.coordinator.client.testmode(),
                 )
                 ignore_invalid = mdev.device.get(MQTT_OVERLAY) and mdev.is_connected
             key = self.entity_description.json_key
@@ -789,37 +783,6 @@ class AnkerSolixSensor(CoordinatorEntity, SensorEntity):
                         and not self._native_value
                     ):
                         self._native_value = None
-
-                # perform potential value conversions in testmode
-                if (
-                    self.coordinator.client.testmode()
-                    and TEST_NUMBERVARIANCE
-                    and self._native_value is not None
-                    and float(self._native_value)
-                ):
-                    # When running in Test mode, simulate some variance for sensors with set device class
-                    if self.device_class:
-                        if self.device_class == SensorDeviceClass.ENUM:
-                            self._native_value = choice(self.entity_description.options)
-                        elif self.device_class == SensorDeviceClass.ENERGY and hasattr(
-                            self, "_last_known_value"
-                        ):
-                            # only moderate increase from last knonw value to higher value for Energy to avoid meter reset alerts
-                            self._native_value = round(
-                                max(
-                                    float(self._last_known_value),
-                                    float(self._native_value),
-                                )
-                                * randrange(100, 102, 1)
-                                / 100,
-                                3,
-                            )
-                        else:
-                            # value fluctuation in both directions for other classes
-                            self._native_value = round(
-                                float(self._native_value) * randrange(70, 130, 5) / 100,
-                                3,
-                            )
         else:
             self._native_value = None
 
