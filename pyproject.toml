@@ -22,7 +22,7 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-homeassistant-custom-component>=0.13",
     "aresponses>=3.0",
-    "ruff==0.15.11",
+    "ruff==0.15.12",
 ]
 
 [tool.pytest.ini_options]
